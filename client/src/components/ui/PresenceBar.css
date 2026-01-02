@@ -1,0 +1,53 @@
+.presence-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  border: 2px solid;
+  transition: all 0.2s ease;
+}
+
+.user-badge.local {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.user-badge.inactive {
+  opacity: 0.5;
+}
+
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.user-name {
+  font-size: 12px;
+  color: var(--frosting-white);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-count {
+  font-size: 12px;
+  color: var(--cream);
+  opacity: 0.7;
+  margin-left: var(--spacing-sm);
+}

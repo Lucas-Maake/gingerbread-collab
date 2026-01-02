@@ -1,0 +1,87 @@
+.piece-tray {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  z-index: 100;
+}
+
+.piece-category {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.category-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--cream);
+  opacity: 0.7;
+  letter-spacing: 1px;
+}
+
+.piece-buttons {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.piece-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--spacing-sm);
+  background: var(--gingerbread-brown);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 50px;
+}
+
+.piece-button:hover:not(:disabled) {
+  background: var(--dark-chocolate);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.piece-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.piece-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.piece-icon {
+  font-size: 20px;
+}
+
+.piece-label {
+  font-size: 9px;
+  color: var(--frosting-white);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.limit-warning {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--candy-red);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}

@@ -1,0 +1,130 @@
+.landing-page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--spacing-lg);
+  position: relative;
+  overflow: auto;
+}
+
+.landing-content {
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+}
+
+.landing-title {
+  font-size: 2.5rem;
+  margin-bottom: var(--spacing-md);
+  color: var(--frosting-white);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.landing-subtitle {
+  font-size: 1.125rem;
+  margin-bottom: var(--spacing-xl);
+  color: var(--cream);
+  opacity: 0.9;
+}
+
+.landing-card {
+  background: var(--cream);
+  color: var(--text-primary);
+  padding: var(--spacing-xl);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.input-group {
+  margin-bottom: var(--spacing-lg);
+  text-align: left;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.input-group input {
+  width: 100%;
+  font-size: 1rem;
+}
+
+.btn {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--candy-red);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #c11030;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 20, 60, 0.4);
+}
+
+.btn-secondary {
+  background: var(--christmas-green);
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #1a7a1a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(34, 139, 34, 0.4);
+}
+
+.divider {
+  margin: var(--spacing-lg) 0;
+  position: relative;
+  text-align: center;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.divider span {
+  position: relative;
+  background: var(--cream);
+  padding: 0 var(--spacing-md);
+  color: var(--gingerbread-brown);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.landing-footer {
+  margin-top: var(--spacing-lg);
+}
+
+.warning-text {
+  color: var(--user-orange);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.info-text {
+  color: var(--cream);
+  font-size: 0.875rem;
+  opacity: 0.8;
+}

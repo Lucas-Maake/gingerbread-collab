@@ -1,0 +1,24 @@
+{
+  "name": "gingerbread-collab",
+  "version": "1.0.0",
+  "description": "Gingerbread Collab Builder - A collaborative 3D gingerbread house builder",
+  "private": true,
+  "scripts": {
+    "install:all": "cd client && npm install && cd ../server && npm install",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build:client": "cd client && npm run build",
+    "start:server": "cd server && npm start"
+  },
+  "keywords": [
+    "collaborative",
+    "3d",
+    "gingerbread",
+    "christmas",
+    "realtime",
+    "threejs",
+    "socketio"
+  ],
+  "author": "",
+  "license": "MIT"
+}

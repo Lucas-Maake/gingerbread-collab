@@ -1,0 +1,153 @@
+/* Gingerbread Collab Builder - Main Styles */
+/* LoFi Christmas Cozy Theme */
+
+:root {
+  /* Color Palette: Warm browns, creams, reds, and greens */
+  --gingerbread-brown: #8B4513;
+  --cream: #FFF8DC;
+  --frosting-white: #FFFAFA;
+  --candy-red: #DC143C;
+  --christmas-green: #228B22;
+  --dark-chocolate: #3E2723;
+
+  /* User presence colors */
+  --user-red: #FF5252;
+  --user-blue: #448AFF;
+  --user-green: #69F0AE;
+  --user-yellow: #FFD740;
+  --user-purple: #E040FB;
+  --user-orange: #FF6E40;
+
+  /* Background gradient */
+  --bg-dark-blue: #1a1a2e;
+  --bg-purple: #16213e;
+
+  /* UI Colors */
+  --text-primary: #2c2c2c;
+  --text-light: #f5f5f5;
+  --border-color: #d4a574;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, var(--bg-dark-blue) 0%, var(--bg-purple) 100%);
+  color: var(--text-light);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Button Styles */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Input Styles */
+input {
+  font-family: inherit;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--frosting-white);
+  color: var(--text-primary);
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--candy-red);
+}
+
+/* Utility Classes */
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Canvas Container */
+.canvas-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Loading State */
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+/* Tooltips */
+.tooltip {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1000;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.modal {
+  background: var(--cream);
+  color: var(--text-primary);
+  padding: var(--spacing-xl);
+  border-radius: 16px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}

@@ -1,0 +1,31 @@
+.sfx-mute-button {
+  position: absolute;
+  top: 60px;
+  right: var(--spacing-md);
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 100;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.sfx-mute-button:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.sfx-mute-button.muted {
+  opacity: 0.6;
+}
+
+.sfx-mute-button svg {
+  flex-shrink: 0;
+}
+
+.sfx-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
