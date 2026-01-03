@@ -12,7 +12,7 @@ const SNAP_TARGETS = ['WALL_FRONT', 'WALL_BACK', 'WALL_LEFT', 'WALL_RIGHT']
 // Snap distance threshold (how close before snapping)
 const SNAP_DISTANCE = 0.5
 
-// Piece dimensions (must match Pieces.jsx)
+// Piece dimensions (must match PIECE_CONFIGS in Pieces.jsx)
 const PIECE_SIZES = {
   WALL_FRONT: { width: 2, height: 1.5, depth: 0.15, axis: 'z' },
   WALL_BACK: { width: 2, height: 1.5, depth: 0.15, axis: 'z' },
