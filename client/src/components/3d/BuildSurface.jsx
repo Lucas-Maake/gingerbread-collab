@@ -7,9 +7,9 @@ const WIDTH = 10
 const DEPTH = 10
 const THICKNESS = 0.2
 
-// Wood-like color for table
-const WOOD_COLOR = '#8B4513'
-const WOOD_DARK = '#5D3A1A'
+// Soft brown color for table
+const WOOD_COLOR = '#C9A07A'
+const WOOD_DARK = '#A8845C'
 
 /**
  * Build surface - the table/plate where pieces are placed

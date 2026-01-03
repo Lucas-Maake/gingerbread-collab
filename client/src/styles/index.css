@@ -18,9 +18,9 @@
   --user-purple: #E040FB;
   --user-orange: #FF6E40;
 
-  /* Background gradient */
-  --bg-dark-blue: #1a1a2e;
-  --bg-purple: #16213e;
+  /* Background gradient - warm sunset pink */
+  --bg-sunset-top: #FFA270;
+  --bg-soft-pink: #FFE4EC;
 
   /* UI Colors */
   --text-primary: #2c2c2c;
@@ -43,7 +43,7 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, var(--bg-dark-blue) 0%, var(--bg-purple) 100%);
+  background: linear-gradient(180deg, var(--bg-sunset-top) 0%, var(--bg-soft-pink) 100%);
   color: var(--text-light);
   min-height: 100vh;
   overflow: hidden;

@@ -23,9 +23,9 @@ export default function Scene() {
         powerPreference: 'high-performance',
         preserveDrawingBuffer: true // Required for screenshots
       }}
-      style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)' }}
+      style={{ background: 'linear-gradient(180deg, #FFA270 0%, #FFE4EC 100%)' }}
       onCreated={({ gl }) => {
-        gl.setClearColor('#1a1a2e')
+        gl.setClearColor('#FFD6DC')
       }}
     >
       {/* Orthographic camera for isometric view */}

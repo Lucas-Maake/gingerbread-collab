@@ -63,7 +63,11 @@
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: var(--frosting-white);
+  color: var(--dark-chocolate);
+  background: rgba(255, 255, 255, 0.8);
+  padding: var(--spacing-xl);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
 }
 
 .placeholder-message h2 {
@@ -154,13 +158,17 @@
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: var(--frosting-white);
+  color: var(--dark-chocolate);
+  background: rgba(255, 255, 255, 0.8);
+  padding: var(--spacing-xl);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
 }
 
 .loading-spinner {
   width: 50px;
   height: 50px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
+  border: 4px solid rgba(139, 69, 19, 0.2);
   border-top-color: var(--candy-red);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -239,6 +247,6 @@
 /* Piece count indicator */
 .piece-count {
   font-size: 0.875rem;
-  color: var(--cream);
-  opacity: 0.8;
+  color: var(--frosting-white);
+  opacity: 0.9;
 }
