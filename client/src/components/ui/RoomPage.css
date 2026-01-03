@@ -15,6 +15,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-md);
+  padding-right: 70px; /* Space for mute button */
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
   z-index: 100;

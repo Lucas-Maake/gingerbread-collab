@@ -1,6 +1,6 @@
 .sfx-mute-button {
   position: absolute;
-  top: 60px;
+  top: 75px;
   right: var(--spacing-md);
   background: rgba(0, 0, 0, 0.6);
   color: white;
