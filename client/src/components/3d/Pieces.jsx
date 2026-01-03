@@ -25,7 +25,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [2, 0.15, 2],
     color: GINGERBREAD_COLOR,
     yOffset: 0.075,
-    model: '/models/gingerbread/base-platform.glb',
+    // model: '/models/gingerbread/base-platform.glb',
     allowColorOverride: false
   },
   WALL_FRONT: {
@@ -34,7 +34,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [2, 1.5, 0.15],
     color: GINGERBREAD_COLOR,
     yOffset: 0.75,
-    model: '/models/gingerbread/wall-front.glb',
+    // model: '/models/gingerbread/wall-front.glb',
     allowColorOverride: false
   },
   WALL_BACK: {
@@ -43,7 +43,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [2, 1.5, 0.15],
     color: GINGERBREAD_COLOR,
     yOffset: 0.75,
-    model: '/models/gingerbread/wall-back.glb',
+    // model: '/models/gingerbread/wall-back.glb',
     allowColorOverride: false
   },
   WALL_LEFT: {
@@ -52,7 +52,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [0.15, 1.5, 2],
     color: GINGERBREAD_COLOR,
     yOffset: 0.75,
-    model: '/models/gingerbread/wall-left.glb',
+    // model: '/models/gingerbread/wall-left.glb',
     allowColorOverride: false
   },
   WALL_RIGHT: {
@@ -61,7 +61,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [0.15, 1.5, 2],
     color: GINGERBREAD_COLOR,
     yOffset: 0.75,
-    model: '/models/gingerbread/wall-right.glb',
+    // model: '/models/gingerbread/wall-right.glb',
     allowColorOverride: false
   },
   ROOF_LEFT: {
@@ -71,7 +71,7 @@ export const PIECE_CONFIGS = {
     color: GINGERBREAD_DARK,
     yOffset: 0.06,
     rotationX: Math.PI / 6, // Angled roof
-    model: '/models/gingerbread/roof-left.glb',
+    // model: '/models/gingerbread/roof-left.glb',
     allowColorOverride: false
   },
   ROOF_RIGHT: {
@@ -81,7 +81,7 @@ export const PIECE_CONFIGS = {
     color: GINGERBREAD_DARK,
     yOffset: 0.06,
     rotationX: -Math.PI / 6,
-    model: '/models/gingerbread/roof-right.glb',
+    // model: '/models/gingerbread/roof-right.glb',
     allowColorOverride: false
   },
   DOOR: {
@@ -90,7 +90,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [0.5, 0.9, 0.08],
     color: '#654321',
     yOffset: 0.45,
-    model: '/models/gingerbread/door.glb',
+    // model: '/models/gingerbread/door.glb',
     allowColorOverride: false
   },
   WINDOW_SMALL: {
@@ -99,7 +99,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [0.35, 0.35, 0.08],
     color: '#87CEEB',
     yOffset: 0.175,
-    model: '/models/gingerbread/window-small.glb',
+    // model: '/models/gingerbread/window-small.glb',
     allowColorOverride: false
   },
   WINDOW_LARGE: {
@@ -108,7 +108,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [0.55, 0.55, 0.08],
     color: '#87CEEB',
     yOffset: 0.275,
-    model: '/models/gingerbread/window-large.glb',
+    // model: '/models/gingerbread/window-large.glb',
     allowColorOverride: false
   },
   CANDY_CANE: {
@@ -118,7 +118,8 @@ export const PIECE_CONFIGS = {
     color: CANDY_RED,
     yOffset: 0.25,
     model: '/models/candy/candy-cane.glb',
-    allowColorOverride: true
+    modelScale: 0.01,
+    allowColorOverride: false
   },
   GUMDROP: {
     geometry: 'cone',
@@ -126,7 +127,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [0.24, 0.2, 0.24],
     color: CANDY_GREEN,
     yOffset: 0.1,
-    model: '/models/candy/gumdrop.glb',
+    // model: '/models/candy/gumdrop.glb',
     allowColorOverride: true
   },
   PEPPERMINT: {
@@ -135,7 +136,7 @@ export const PIECE_CONFIGS = {
     boundingSize: [0.3, 0.05, 0.3],
     color: CANDY_WHITE,
     yOffset: 0.025,
-    model: '/models/candy/peppermint.glb',
+    // model: '/models/candy/peppermint.glb',
     allowColorOverride: true
   }
 }

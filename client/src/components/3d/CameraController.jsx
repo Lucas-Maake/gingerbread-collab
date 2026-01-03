@@ -9,15 +9,16 @@ const MAX_ZOOM = 100   // Far overview
 const DEFAULT_ZOOM = 50
 const PAN_BOUNDS = 7   // Max distance from center (world units)
 
-// Isometric camera setup
+// Camera setup
 const CAMERA_DISTANCE = 15
-const CAMERA_ANGLE = Math.PI / 4 // 45 degrees
+const MIN_POLAR_ANGLE = 0.1  // Prevent looking straight down
+const MAX_POLAR_ANGLE = Math.PI / 2 - 0.1  // Prevent going below ground
 
 /**
- * Camera controller for isometric view
+ * Camera controller with full rotation
  * - Pan: Middle mouse OR Shift + Left drag
  * - Zoom: Mouse scroll wheel
- * - No rotation (locked isometric angle)
+ * - Rotate: Right mouse drag
  */
 export default function CameraController() {
   const { camera, gl } = useThree()
@@ -25,21 +26,43 @@ export default function CameraController() {
 
   // State refs
   const isPanning = useRef(false)
+  const isRotating = useRef(false)
   const lastMouse = useRef({ x: 0, y: 0 })
   const targetCenter = useRef(new THREE.Vector3(0, 0, 0))
   const currentZoom = useRef(DEFAULT_ZOOM)
 
+  // Spherical coordinates for rotation (azimuth = horizontal, polar = vertical)
+  const azimuth = useRef(Math.PI / 4)  // 45 degrees - initial isometric angle
+  const polar = useRef(Math.PI / 4)    // 45 degrees from top
+
+  // Listen for reset camera event
+  useEffect(() => {
+    const handleReset = () => {
+      // Reset to default isometric view
+      azimuth.current = Math.PI / 4
+      polar.current = Math.PI / 4
+      targetCenter.current.set(0, 0, 0)
+      currentZoom.current = DEFAULT_ZOOM
+    }
+
+    window.addEventListener('resetCamera', handleReset)
+    return () => window.removeEventListener('resetCamera', handleReset)
+  }, [])
+
   useEffect(() => {
     const canvas = gl.domElement
 
-    // Set initial camera position (isometric 45 degrees)
+    // Calculate camera position from spherical coordinates
     const updateCameraPosition = () => {
-      const offset = new THREE.Vector3(
-        CAMERA_DISTANCE,
-        CAMERA_DISTANCE,
-        CAMERA_DISTANCE
+      const x = CAMERA_DISTANCE * Math.sin(polar.current) * Math.cos(azimuth.current)
+      const y = CAMERA_DISTANCE * Math.cos(polar.current)
+      const z = CAMERA_DISTANCE * Math.sin(polar.current) * Math.sin(azimuth.current)
+
+      camera.position.set(
+        targetCenter.current.x + x,
+        targetCenter.current.y + y,
+        targetCenter.current.z + z
       )
-      camera.position.copy(targetCenter.current).add(offset)
       camera.lookAt(targetCenter.current)
       camera.zoom = currentZoom.current
       camera.updateProjectionMatrix()
@@ -56,38 +79,62 @@ export default function CameraController() {
         canvas.style.cursor = 'grabbing'
         e.preventDefault()
       }
+      // Right mouse for rotation
+      else if (e.button === 2) {
+        isRotating.current = true
+        lastMouse.current = { x: e.clientX, y: e.clientY }
+        canvas.style.cursor = 'move'
+        e.preventDefault()
+      }
     }
 
     // Mouse move handler
     const handleMouseMove = (e) => {
-      if (!isPanning.current) return
-
       const deltaX = e.clientX - lastMouse.current.x
       const deltaY = e.clientY - lastMouse.current.y
 
-      // Calculate pan in world space (isometric axes)
-      // Screen X maps to world diagonal (X-Z)
-      // Screen Y maps to world depth (X+Z)
-      const panSpeed = 0.015 / (currentZoom.current / DEFAULT_ZOOM)
+      if (isPanning.current) {
+        // Calculate pan in world space based on current camera angle
+        const panSpeed = 0.015 / (currentZoom.current / DEFAULT_ZOOM)
 
-      // Isometric pan vectors
-      const panX = (-deltaX + deltaY) * panSpeed * 0.7
-      const panZ = (-deltaX - deltaY) * panSpeed * 0.7
+        // Get camera right and forward vectors for panning
+        const right = new THREE.Vector3()
+        const forward = new THREE.Vector3()
+        camera.getWorldDirection(forward)
+        right.crossVectors(camera.up, forward).normalize()
+        forward.crossVectors(right, camera.up).normalize()
 
-      targetCenter.current.x += panX
-      targetCenter.current.z += panZ
+        // Apply pan
+        targetCenter.current.x += (-deltaX * right.x + deltaY * forward.x) * panSpeed
+        targetCenter.current.z += (-deltaX * right.z + deltaY * forward.z) * panSpeed
 
-      // Clamp to bounds
-      targetCenter.current.x = THREE.MathUtils.clamp(
-        targetCenter.current.x,
-        -PAN_BOUNDS,
-        PAN_BOUNDS
-      )
-      targetCenter.current.z = THREE.MathUtils.clamp(
-        targetCenter.current.z,
-        -PAN_BOUNDS,
-        PAN_BOUNDS
-      )
+        // Clamp to bounds
+        targetCenter.current.x = THREE.MathUtils.clamp(
+          targetCenter.current.x,
+          -PAN_BOUNDS,
+          PAN_BOUNDS
+        )
+        targetCenter.current.z = THREE.MathUtils.clamp(
+          targetCenter.current.z,
+          -PAN_BOUNDS,
+          PAN_BOUNDS
+        )
+      }
+
+      if (isRotating.current) {
+        const rotateSpeed = 0.005
+
+        // Update azimuth (horizontal rotation)
+        azimuth.current -= deltaX * rotateSpeed
+
+        // Update polar (vertical rotation) with clamping
+        polar.current += deltaY * rotateSpeed
+        polar.current = THREE.MathUtils.clamp(
+          polar.current,
+          MIN_POLAR_ANGLE,
+          MAX_POLAR_ANGLE
+        )
+      }
 
       lastMouse.current = { x: e.clientX, y: e.clientY }
     }
@@ -98,11 +145,16 @@ export default function CameraController() {
         isPanning.current = false
         canvas.style.cursor = 'auto'
       }
+      if (e.button === 2) {
+        isRotating.current = false
+        canvas.style.cursor = 'auto'
+      }
     }
 
     // Mouse leave handler
     const handleMouseLeave = () => {
       isPanning.current = false
+      isRotating.current = false
       canvas.style.cursor = 'auto'
     }
 
@@ -129,10 +181,9 @@ export default function CameraController() {
       )
     }
 
-    // Context menu (prevent on middle click)
+    // Context menu (prevent on right click for rotation)
     const handleContextMenu = (e) => {
-      // Don't prevent if we're handling piece deletion
-      // e.preventDefault()
+      e.preventDefault()
     }
 
     // Add event listeners
@@ -141,6 +192,7 @@ export default function CameraController() {
     canvas.addEventListener('mouseup', handleMouseUp)
     canvas.addEventListener('mouseleave', handleMouseLeave)
     canvas.addEventListener('wheel', handleWheel, { passive: false })
+    canvas.addEventListener('contextmenu', handleContextMenu)
 
     return () => {
       canvas.removeEventListener('mousedown', handleMouseDown)
@@ -148,16 +200,21 @@ export default function CameraController() {
       canvas.removeEventListener('mouseup', handleMouseUp)
       canvas.removeEventListener('mouseleave', handleMouseLeave)
       canvas.removeEventListener('wheel', handleWheel)
+      canvas.removeEventListener('contextmenu', handleContextMenu)
     }
   }, [camera, gl, heldPieceId])
 
   // Smooth camera updates
   useFrame(() => {
-    // Calculate target camera position
+    // Calculate target camera position from spherical coordinates
+    const x = CAMERA_DISTANCE * Math.sin(polar.current) * Math.cos(azimuth.current)
+    const y = CAMERA_DISTANCE * Math.cos(polar.current)
+    const z = CAMERA_DISTANCE * Math.sin(polar.current) * Math.sin(azimuth.current)
+
     const targetPos = new THREE.Vector3(
-      targetCenter.current.x + CAMERA_DISTANCE,
-      CAMERA_DISTANCE,
-      targetCenter.current.z + CAMERA_DISTANCE
+      targetCenter.current.x + x,
+      targetCenter.current.y + y,
+      targetCenter.current.z + z
     )
 
     // Smooth interpolation for position

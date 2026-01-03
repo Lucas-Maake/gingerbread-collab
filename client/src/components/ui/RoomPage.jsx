@@ -7,6 +7,7 @@ import PieceTray from './PieceTray'
 import MuteButton from './MuteButton'
 import SfxMuteButton from './SfxMuteButton'
 import ScreenshotButton from './ScreenshotButton'
+import ResetCameraButton from './ResetCameraButton'
 import './RoomPage.css'
 
 export default function RoomPage() {
@@ -127,9 +128,10 @@ export default function RoomPage() {
       <div className="controls-overlay">
         <div className="controls-hint">
           <p><strong>Controls:</strong></p>
+          <p>Rotate View: Right Mouse Drag</p>
           <p>Pan: Middle Mouse / Shift + Drag</p>
           <p>Zoom: Mouse Wheel</p>
-          <p>Rotate: Q/E (while holding piece)</p>
+          <p>Rotate Piece: Q/E (while holding)</p>
           <p>Undo: Ctrl+Z</p>
         </div>
       </div>
@@ -158,6 +160,9 @@ export default function RoomPage() {
 
       {/* Screenshot Button */}
       <ScreenshotButton />
+
+      {/* Reset Camera Button */}
+      <ResetCameraButton />
     </div>
   )
 }

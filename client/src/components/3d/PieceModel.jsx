@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 
 /**
- * Renders a piece using primitive geometry.
- * When GLTF models are added to public/models/, this can be extended to load them.
+ * Renders a piece using GLTF model if available, otherwise falls back to primitives.
  */
 export default function PieceModel({
   config,
@@ -14,8 +14,115 @@ export default function PieceModel({
   castShadow = true,
   receiveShadow = true
 }) {
-  // For now, always use fallback geometry
-  // TODO: Add GLTF model loading when models are available
+  // If no model path, use fallback
+  if (!config.model) {
+    return (
+      <FallbackGeometry
+        config={config}
+        color={color}
+        opacity={opacity}
+        emissive={emissive}
+        emissiveIntensity={emissiveIntensity}
+        castShadow={castShadow}
+        receiveShadow={receiveShadow}
+      />
+    )
+  }
+
+  // Try to load GLTF model with Suspense fallback
+  return (
+    <Suspense
+      fallback={
+        <FallbackGeometry
+          config={config}
+          color={color}
+          opacity={opacity}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+          castShadow={castShadow}
+          receiveShadow={receiveShadow}
+        />
+      }
+    >
+      <GLTFModel
+        config={config}
+        color={color}
+        opacity={opacity}
+        emissive={emissive}
+        emissiveIntensity={emissiveIntensity}
+        castShadow={castShadow}
+        receiveShadow={receiveShadow}
+      />
+    </Suspense>
+  )
+}
+
+/**
+ * Loads and renders a GLTF model
+ */
+function GLTFModel({
+  config,
+  color,
+  opacity,
+  emissive,
+  emissiveIntensity,
+  castShadow,
+  receiveShadow
+}) {
+  const { scene } = useGLTF(config.model)
+
+  // Clone scene and apply material overrides
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true)
+
+    clone.traverse((child) => {
+      if (child.isMesh) {
+        // Clone material to prevent shared state
+        child.material = child.material.clone()
+
+        // Apply color override if allowed
+        if (config.allowColorOverride && color) {
+          child.material.color = new THREE.Color(color)
+        }
+
+        // Apply opacity
+        if (opacity < 1) {
+          child.material.transparent = true
+          child.material.opacity = opacity
+        }
+
+        // Apply emissive for hover effect
+        if (emissive !== '#000000') {
+          child.material.emissive = new THREE.Color(emissive)
+          child.material.emissiveIntensity = emissiveIntensity
+        }
+
+        // Enable shadows
+        child.castShadow = castShadow
+        child.receiveShadow = receiveShadow
+      }
+    })
+
+    return clone
+  }, [scene, color, opacity, emissive, emissiveIntensity, config.allowColorOverride, castShadow, receiveShadow])
+
+  const scale = config.modelScale || 1
+
+  return <primitive object={clonedScene} scale={scale} />
+}
+
+/**
+ * Fallback primitive geometry when model isn't available
+ */
+function FallbackGeometry({
+  config,
+  color,
+  opacity,
+  emissive,
+  emissiveIntensity,
+  castShadow,
+  receiveShadow
+}) {
   return (
     <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
       <PrimitiveGeometry type={config.geometry} size={config.size} />

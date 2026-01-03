@@ -1,0 +1,33 @@
+.reset-camera-button {
+  position: absolute;
+  bottom: 185px;
+  right: var(--spacing-md);
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: white;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 100;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.reset-camera-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.reset-camera-button:active {
+  transform: scale(0.98);
+}
+
+.reset-camera-button svg {
+  flex-shrink: 0;
+}
+
+.reset-camera-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
