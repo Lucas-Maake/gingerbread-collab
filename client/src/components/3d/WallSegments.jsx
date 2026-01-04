@@ -2,14 +2,102 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
 
-// Gingerbread wall color
+// Gingerbread wall colors
 const WALL_COLOR = '#8B4513'
 const WALL_EMISSIVE = '#2a1507'
+
+/**
+ * Create a procedural gingerbread texture using canvas
+ */
+function createGingerbreadTexture(width = 256, height = 256) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+
+  // Base gingerbread color
+  const baseR = 139, baseG = 69, baseB = 19 // #8B4513
+
+  // Fill with base color
+  ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`
+  ctx.fillRect(0, 0, width, height)
+
+  // Add subtle color variation (baked texture)
+  const imageData = ctx.getImageData(0, 0, width, height)
+  const data = imageData.data
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4
+
+      // Large-scale variation (lighter/darker patches)
+      const patchNoise = Math.sin(x * 0.05) * Math.cos(y * 0.05) * 15
+
+      // Medium noise for texture
+      const medNoise = (Math.random() - 0.5) * 20
+
+      // Small pores/bumps
+      const poreChance = Math.random()
+      let poreEffect = 0
+      if (poreChance > 0.97) {
+        poreEffect = -25 // Dark pore
+      } else if (poreChance > 0.94) {
+        poreEffect = 15 // Light spot
+      }
+
+      // Subtle horizontal banding (like layers in baked goods)
+      const bandNoise = Math.sin(y * 0.3) * 5
+
+      const totalNoise = patchNoise + medNoise + poreEffect + bandNoise
+
+      data[i] = Math.max(0, Math.min(255, baseR + totalNoise))
+      data[i + 1] = Math.max(0, Math.min(255, baseG + totalNoise * 0.6))
+      data[i + 2] = Math.max(0, Math.min(255, baseB + totalNoise * 0.3))
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0)
+
+  // Add some darker edge spots (like slightly burnt edges)
+  const edgeSpots = 5 + Math.floor(Math.random() * 5)
+  for (let i = 0; i < edgeSpots; i++) {
+    const spotX = Math.random() * width
+    const spotY = Math.random() * height
+    const spotRadius = 3 + Math.random() * 8
+
+    const gradient = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, spotRadius)
+    gradient.addColorStop(0, 'rgba(60, 30, 10, 0.3)')
+    gradient.addColorStop(1, 'rgba(60, 30, 10, 0)')
+
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(spotX, spotY, spotRadius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+
+  return texture
+}
+
+// Create shared gingerbread texture (created once)
+let sharedGingerbreadTexture = null
+function getGingerbreadTexture() {
+  if (!sharedGingerbreadTexture) {
+    sharedGingerbreadTexture = createGingerbreadTexture(512, 512)
+    sharedGingerbreadTexture.repeat.set(2, 2)
+  }
+  return sharedGingerbreadTexture
+}
 
 /**
  * Single wall segment component
  */
 function WallSegment({ wall, isOwner, onDelete }) {
+  const texture = useMemo(() => getGingerbreadTexture(), [])
+
   const geometry = useMemo(() => {
     const [startX, startZ] = wall.start
     const [endX, endZ] = wall.end
@@ -49,11 +137,11 @@ function WallSegment({ wall, isOwner, onDelete }) {
     >
       <boxGeometry args={geometry.args} />
       <meshStandardMaterial
-        color={WALL_COLOR}
+        map={texture}
         emissive={WALL_EMISSIVE}
         emissiveIntensity={0.1}
-        roughness={0.8}
-        metalness={0.1}
+        roughness={0.85}
+        metalness={0.05}
       />
     </mesh>
   )

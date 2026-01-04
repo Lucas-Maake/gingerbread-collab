@@ -7,13 +7,91 @@ const WALL_HEIGHT = 1.5
 const ROOF_THICKNESS = 0.1
 const ROOF_OVERHANG = 0.15
 const PITCHED_ROOF_HEIGHT = 0.8 // Height of the ridge above wall top
-const ROOF_COLOR = '#8B4513'
 const ROOF_EMISSIVE = '#2a1507'
+
+/**
+ * Create a procedural gingerbread texture for roofs
+ */
+function createGingerbreadTexture(width = 256, height = 256) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+
+  // Base gingerbread color (slightly darker for roof)
+  const baseR = 130, baseG = 60, baseB = 15
+
+  ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`
+  ctx.fillRect(0, 0, width, height)
+
+  const imageData = ctx.getImageData(0, 0, width, height)
+  const data = imageData.data
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4
+
+      const patchNoise = Math.sin(x * 0.05) * Math.cos(y * 0.05) * 15
+      const medNoise = (Math.random() - 0.5) * 20
+
+      const poreChance = Math.random()
+      let poreEffect = 0
+      if (poreChance > 0.97) {
+        poreEffect = -25
+      } else if (poreChance > 0.94) {
+        poreEffect = 15
+      }
+
+      const bandNoise = Math.sin(y * 0.3) * 5
+      const totalNoise = patchNoise + medNoise + poreEffect + bandNoise
+
+      data[i] = Math.max(0, Math.min(255, baseR + totalNoise))
+      data[i + 1] = Math.max(0, Math.min(255, baseG + totalNoise * 0.6))
+      data[i + 2] = Math.max(0, Math.min(255, baseB + totalNoise * 0.3))
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0)
+
+  const edgeSpots = 5 + Math.floor(Math.random() * 5)
+  for (let i = 0; i < edgeSpots; i++) {
+    const spotX = Math.random() * width
+    const spotY = Math.random() * height
+    const spotRadius = 3 + Math.random() * 8
+
+    const gradient = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, spotRadius)
+    gradient.addColorStop(0, 'rgba(60, 30, 10, 0.3)')
+    gradient.addColorStop(1, 'rgba(60, 30, 10, 0)')
+
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(spotX, spotY, spotRadius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(2, 2)
+
+  return texture
+}
+
+// Shared roof texture
+let sharedRoofTexture = null
+function getRoofTexture() {
+  if (!sharedRoofTexture) {
+    sharedRoofTexture = createGingerbreadTexture(512, 512)
+  }
+  return sharedRoofTexture
+}
 
 /**
  * Single roof polygon component
  */
 function RoofPolygon({ vertices, roofStyle }) {
+  const texture = useMemo(() => getRoofTexture(), [])
+
   const geometry = useMemo(() => {
     if (vertices.length < 3) return null
 
@@ -101,11 +179,11 @@ function RoofPolygon({ vertices, roofStyle }) {
   return (
     <mesh geometry={geometry} castShadow receiveShadow>
       <meshStandardMaterial
-        color={ROOF_COLOR}
+        map={texture}
         emissive={ROOF_EMISSIVE}
         emissiveIntensity={0.1}
-        roughness={0.8}
-        metalness={0.1}
+        roughness={0.85}
+        metalness={0.05}
         side={THREE.DoubleSide}
       />
     </mesh>
