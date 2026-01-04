@@ -1,9 +1,9 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useState, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-// Number of snowflakes (50-100 for performance per PRD)
-const SNOWFLAKE_COUNT = 75
+// Maximum snowflakes (we allocate this many, but may show fewer)
+const MAX_SNOWFLAKE_COUNT = 500
 
 // Snow bounds
 const BOUNDS = {
@@ -12,20 +12,38 @@ const BOUNDS = {
   z: 15
 }
 
+// Get initial snow count from localStorage
+function getInitialSnowCount() {
+  const saved = localStorage.getItem('snowLevel')
+  const levels = { OFF: 0, LIGHT: 100, MEDIUM: 250, HEAVY: 500 }
+  return levels[saved] ?? 250
+}
+
 /**
  * Gentle snow particle effect
  * Visual only, no physics interaction
  */
 export default function SnowParticles() {
   const pointsRef = useRef()
+  const [activeCount, setActiveCount] = useState(getInitialSnowCount)
 
-  // Generate initial snowflake positions
+  // Listen for intensity changes
+  useEffect(() => {
+    const handleIntensityChange = (e) => {
+      setActiveCount(e.detail.count)
+    }
+
+    window.addEventListener('snowIntensityChange', handleIntensityChange)
+    return () => window.removeEventListener('snowIntensityChange', handleIntensityChange)
+  }, [])
+
+  // Generate initial snowflake positions (allocate max, show activeCount)
   const particles = useMemo(() => {
-    const positions = new Float32Array(SNOWFLAKE_COUNT * 3)
-    const velocities = new Float32Array(SNOWFLAKE_COUNT * 3)
-    const sizes = new Float32Array(SNOWFLAKE_COUNT)
+    const positions = new Float32Array(MAX_SNOWFLAKE_COUNT * 3)
+    const velocities = new Float32Array(MAX_SNOWFLAKE_COUNT * 3)
+    const sizes = new Float32Array(MAX_SNOWFLAKE_COUNT)
 
-    for (let i = 0; i < SNOWFLAKE_COUNT; i++) {
+    for (let i = 0; i < MAX_SNOWFLAKE_COUNT; i++) {
       // Random position within bounds
       positions[i * 3] = (Math.random() - 0.5) * BOUNDS.x * 2
       positions[i * 3 + 1] = Math.random() * BOUNDS.y
@@ -45,12 +63,12 @@ export default function SnowParticles() {
 
   // Animate snowflakes
   useFrame((state, delta) => {
-    if (!pointsRef.current) return
+    if (!pointsRef.current || activeCount === 0) return
 
     const positions = pointsRef.current.geometry.attributes.position.array
     const velocities = particles.velocities
 
-    for (let i = 0; i < SNOWFLAKE_COUNT; i++) {
+    for (let i = 0; i < activeCount; i++) {
       // Apply velocity
       positions[i * 3] += velocities[i * 3]
       positions[i * 3 + 1] += velocities[i * 3 + 1]
@@ -71,27 +89,32 @@ export default function SnowParticles() {
     pointsRef.current.geometry.attributes.position.needsUpdate = true
   })
 
+  // Don't render if snow is off
+  if (activeCount === 0) {
+    return null
+  }
+
   return (
     <points ref={pointsRef}>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          count={SNOWFLAKE_COUNT}
+          count={activeCount}
           array={particles.positions}
           itemSize={3}
         />
         <bufferAttribute
           attach="attributes-size"
-          count={SNOWFLAKE_COUNT}
+          count={activeCount}
           array={particles.sizes}
           itemSize={1}
         />
       </bufferGeometry>
       <pointsMaterial
         color="#ffffff"
-        size={0.05}
+        size={0.08}
         transparent
-        opacity={0.8}
+        opacity={0.95}
         sizeAttenuation
         depthWrite={false}
       />
