@@ -25,6 +25,7 @@ export const useGameStore = create((set, get) => ({
   buildMode: 'select', // 'select' | 'wall' | 'icing'
   gridSnapEnabled: true,
   gridSize: 0.5, // Grid snap increment in world units
+  roofStyle: 'pitched', // 'flat' | 'pitched'
 
   // ==================== WALL STATE ====================
   walls: new Map(), // Map<wallId, WallState>
@@ -373,6 +374,8 @@ export const useGameStore = create((set, get) => ({
 
   toggleGridSnap: () => set({ gridSnapEnabled: !get().gridSnapEnabled }),
   setGridSnapEnabled: (enabled) => set({ gridSnapEnabled: enabled }),
+  toggleRoofStyle: () => set({ roofStyle: get().roofStyle === 'flat' ? 'pitched' : 'flat' }),
+  setRoofStyle: (style) => set({ roofStyle: style }),
 
   // Wall drawing actions
   setWallDrawingStartPoint: (point) => set({ wallDrawingStartPoint: point }),

@@ -6,6 +6,8 @@ export default function BuildToolbar() {
   const setBuildMode = useGameStore((state) => state.setBuildMode)
   const gridSnapEnabled = useGameStore((state) => state.gridSnapEnabled)
   const toggleGridSnap = useGameStore((state) => state.toggleGridSnap)
+  const roofStyle = useGameStore((state) => state.roofStyle)
+  const toggleRoofStyle = useGameStore((state) => state.toggleRoofStyle)
 
   return (
     <div className="build-toolbar">
@@ -58,6 +60,20 @@ export default function BuildToolbar() {
             <path d="M20 3H4c-.55 0-1 .45-1 1v16c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM8 19H5v-3h3v3zm0-5H5v-3h3v3zm0-5H5V6h3v3zm5 10h-3v-3h3v3zm0-5h-3v-3h3v3zm0-5h-3V6h3v3zm5 10h-3v-3h3v3zm0-5h-3v-3h3v3zm0-5h-3V6h3v3z" />
           </svg>
           <span>Grid</span>
+        </button>
+        <button
+          className={`toolbar-btn toggle ${roofStyle === 'pitched' ? 'active' : ''}`}
+          onClick={toggleRoofStyle}
+          title="Toggle Roof Style (R)"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            {roofStyle === 'pitched' ? (
+              <path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 2.8L18.5 12H17v6H7v-6H5.5L12 5.8z" />
+            ) : (
+              <path d="M3 13h18v-2H3v2zm0 6h18v-6H3v6z" />
+            )}
+          </svg>
+          <span>{roofStyle === 'pitched' ? 'Pitched' : 'Flat'}</span>
         </button>
       </div>
 

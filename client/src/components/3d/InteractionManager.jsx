@@ -228,6 +228,9 @@ export default function InteractionManager() {
           case 'g':
             state.toggleGridSnap()
             return
+          case 'r':
+            state.toggleRoofStyle()
+            return
         }
       }
 

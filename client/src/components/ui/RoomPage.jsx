@@ -131,7 +131,7 @@ export default function RoomPage() {
         <div className="controls-hint">
           <p><strong>Controls:</strong></p>
           <p>V: Select mode | W: Wall mode | I: Icing mode</p>
-          <p>G: Toggle grid snap</p>
+          <p>G: Toggle grid snap | R: Toggle roof style</p>
           <p>Rotate View: Right Mouse Drag</p>
           <p>Pan: Middle Mouse / Shift + Drag</p>
           <p>Zoom: Mouse Wheel</p>
