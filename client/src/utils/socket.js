@@ -391,6 +391,90 @@ export function undo() {
   })
 }
 
+// ==================== WALL OPERATIONS ====================
+
+/**
+ * Create a wall segment
+ */
+export function createWallSegment(start, end, height = 1.5) {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error('Not connected'))
+      return
+    }
+
+    socket.emit('create_wall_segment', { start, end, height }, (response) => {
+      if (response.error) {
+        reject(new Error(response.error))
+      } else {
+        resolve(response)
+      }
+    })
+  })
+}
+
+/**
+ * Delete a wall segment
+ */
+export function deleteWallSegment(wallId) {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error('Not connected'))
+      return
+    }
+
+    socket.emit('delete_wall_segment', { wallId }, (response) => {
+      if (response.error) {
+        reject(new Error(response.error))
+      } else {
+        resolve(response)
+      }
+    })
+  })
+}
+
+// ==================== ICING OPERATIONS ====================
+
+/**
+ * Create an icing stroke
+ */
+export function createIcingStroke(points, radius = 0.05, surfaceType = 'ground', surfaceId = null) {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error('Not connected'))
+      return
+    }
+
+    socket.emit('create_icing_stroke', { points, radius, surfaceType, surfaceId }, (response) => {
+      if (response.error) {
+        reject(new Error(response.error))
+      } else {
+        resolve(response)
+      }
+    })
+  })
+}
+
+/**
+ * Delete an icing stroke
+ */
+export function deleteIcingStroke(icingId) {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error('Not connected'))
+      return
+    }
+
+    socket.emit('delete_icing_stroke', { icingId }, (response) => {
+      if (response.error) {
+        reject(new Error(response.error))
+      } else {
+        resolve(response)
+      }
+    })
+  })
+}
+
 // ==================== UTILITY ====================
 
 /**

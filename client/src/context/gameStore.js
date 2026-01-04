@@ -21,6 +21,20 @@ export const useGameStore = create((set, get) => ({
   pieceCount: 0,
   maxPieces: 50,
 
+  // ==================== BUILD MODE STATE ====================
+  buildMode: 'select', // 'select' | 'wall' | 'icing'
+  gridSnapEnabled: true,
+  gridSize: 0.5, // Grid snap increment in world units
+
+  // ==================== WALL STATE ====================
+  walls: new Map(), // Map<wallId, WallState>
+  wallDrawingStartPoint: null, // [x, z] or null when not drawing
+
+  // ==================== ICING STATE ====================
+  icing: new Map(), // Map<icingId, IcingState>
+  icingDrawingPoints: [], // Current stroke being drawn
+  isDrawingIcing: false,
+
   // ==================== UI STATE ====================
   isLoading: false,
   error: null,
@@ -87,11 +101,29 @@ export const useGameStore = create((set, get) => ({
         piecesMap.set(piece.pieceId, piece)
       }
 
+      // Build walls map
+      const wallsMap = new Map()
+      if (snapshot.walls) {
+        for (const wall of snapshot.walls) {
+          wallsMap.set(wall.wallId, wall)
+        }
+      }
+
+      // Build icing map
+      const icingMap = new Map()
+      if (snapshot.icing) {
+        for (const stroke of snapshot.icing) {
+          icingMap.set(stroke.icingId, stroke)
+        }
+      }
+
       set({
         roomId: snapshot.roomId,
         userId,
         users: usersMap,
         pieces: piecesMap,
+        walls: wallsMap,
+        icing: icingMap,
         localUser: usersMap.get(userId),
         pieceCount: snapshot.pieceCount,
         maxPieces: snapshot.maxPieces,
@@ -116,9 +148,15 @@ export const useGameStore = create((set, get) => ({
       userId: null,
       users: new Map(),
       pieces: new Map(),
+      walls: new Map(),
+      icing: new Map(),
       localUser: null,
       heldPieceId: null,
-      pieceCount: 0
+      pieceCount: 0,
+      buildMode: 'select',
+      wallDrawingStartPoint: null,
+      icingDrawingPoints: [],
+      isDrawingIcing: false
     })
   },
 
@@ -317,7 +355,112 @@ export const useGameStore = create((set, get) => ({
   clearNotification: () => set({ notification: null }),
 
   // Set notification
-  showNotification: (type, message) => set({ notification: { type, message } })
+  showNotification: (type, message) => set({ notification: { type, message } }),
+
+  // ==================== BUILD MODE ACTIONS ====================
+
+  setBuildMode: (mode) => {
+    const state = get()
+    // Clear any in-progress drawing when switching modes
+    if (state.wallDrawingStartPoint) {
+      set({ wallDrawingStartPoint: null })
+    }
+    if (state.isDrawingIcing) {
+      set({ isDrawingIcing: false, icingDrawingPoints: [] })
+    }
+    set({ buildMode: mode })
+  },
+
+  toggleGridSnap: () => set({ gridSnapEnabled: !get().gridSnapEnabled }),
+  setGridSnapEnabled: (enabled) => set({ gridSnapEnabled: enabled }),
+
+  // Wall drawing actions
+  setWallDrawingStartPoint: (point) => set({ wallDrawingStartPoint: point }),
+  clearWallDrawingStartPoint: () => set({ wallDrawingStartPoint: null }),
+
+  // Icing drawing actions
+  startIcingStroke: () => set({ isDrawingIcing: true, icingDrawingPoints: [] }),
+  addIcingPoint: (point) => {
+    const points = [...get().icingDrawingPoints, point]
+    set({ icingDrawingPoints: points })
+  },
+  endIcingStroke: () => set({ isDrawingIcing: false }),
+  clearIcingStroke: () => set({ icingDrawingPoints: [], isDrawingIcing: false }),
+
+  // ==================== WALL ACTIONS ====================
+
+  createWall: async (start, end, height = 1.5) => {
+    try {
+      const response = await socket.createWallSegment(start, end, height)
+      // Wall will be added via socket event
+      playGlobalSound(SoundType.SPAWN)
+      return response.wall
+    } catch (error) {
+      set({ error: error.message })
+      return null
+    }
+  },
+
+  deleteWall: async (wallId) => {
+    try {
+      await socket.deleteWallSegment(wallId)
+      // Wall will be removed via socket event
+      playGlobalSound(SoundType.DELETE)
+    } catch (error) {
+      set({ error: error.message })
+    }
+  },
+
+  // Wall socket event handlers
+  handleWallCreated: (data) => {
+    const walls = new Map(get().walls)
+    walls.set(data.wall.wallId, data.wall)
+    set({ walls })
+  },
+
+  handleWallDeleted: (data) => {
+    const walls = new Map(get().walls)
+    walls.delete(data.wallId)
+    set({ walls })
+  },
+
+  // ==================== ICING ACTIONS ====================
+
+  createIcing: async (points, radius = 0.05, surfaceType = 'wall', surfaceId = null) => {
+    if (points.length < 2) return null
+    try {
+      const response = await socket.createIcingStroke(points, radius, surfaceType, surfaceId)
+      // Icing will be added via socket event
+      playGlobalSound(SoundType.RELEASE)
+      return response.icing
+    } catch (error) {
+      set({ error: error.message })
+      return null
+    }
+  },
+
+  deleteIcing: async (icingId) => {
+    try {
+      await socket.deleteIcingStroke(icingId)
+      // Icing will be removed via socket event
+      playGlobalSound(SoundType.DELETE)
+    } catch (error) {
+      set({ error: error.message })
+    }
+  },
+
+  // Icing socket event handlers
+  handleIcingCreated: (data) => {
+    const icing = new Map(get().icing)
+    icing.set(data.icing.icingId, data.icing)
+    set({ icing })
+  },
+
+  handleIcingDeleted: (data) => {
+    const icing = new Map(get().icing)
+    icing.delete(data.icingId)
+    set({ icing })
+  }
 }))
 
 /**
@@ -347,6 +490,14 @@ export function initSocketListeners() {
   socket.on('piece_released', store.handlePieceReleased)
   socket.on('piece_moved', store.handlePieceMoved)
   socket.on('piece_deleted', store.handlePieceDeleted)
+
+  // Wall events
+  socket.on('wall_segment_created', store.handleWallCreated)
+  socket.on('wall_segment_deleted', store.handleWallDeleted)
+
+  // Icing events
+  socket.on('icing_stroke_created', store.handleIcingCreated)
+  socket.on('icing_stroke_deleted', store.handleIcingDeleted)
 }
 
 /**

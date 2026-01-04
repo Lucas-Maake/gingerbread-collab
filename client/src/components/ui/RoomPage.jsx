@@ -8,6 +8,8 @@ import MuteButton from './MuteButton'
 import SfxMuteButton from './SfxMuteButton'
 import ScreenshotButton from './ScreenshotButton'
 import ResetCameraButton from './ResetCameraButton'
+import SnowControl from './SnowControl'
+import BuildToolbar from './BuildToolbar'
 import './RoomPage.css'
 
 export default function RoomPage() {
@@ -128,6 +130,8 @@ export default function RoomPage() {
       <div className="controls-overlay">
         <div className="controls-hint">
           <p><strong>Controls:</strong></p>
+          <p>V: Select mode | W: Wall mode | I: Icing mode</p>
+          <p>G: Toggle grid snap</p>
           <p>Rotate View: Right Mouse Drag</p>
           <p>Pan: Middle Mouse / Shift + Drag</p>
           <p>Zoom: Mouse Wheel</p>
@@ -140,6 +144,9 @@ export default function RoomPage() {
       <button className="undo-button" onClick={undo}>
         Undo
       </button>
+
+      {/* Build Toolbar */}
+      <BuildToolbar />
 
       {/* Connection Status */}
       {connectionState !== 'connected' && (
@@ -163,6 +170,9 @@ export default function RoomPage() {
 
       {/* Reset Camera Button */}
       <ResetCameraButton />
+
+      {/* Snow Control */}
+      <SnowControl />
     </div>
   )
 }

@@ -2,19 +2,8 @@ import { useGameStore } from '../../context/gameStore'
 import './PieceTray.css'
 
 // Piece categories for organization
+// Note: Walls and roofs are now drawn using the Wall tool in the BuildToolbar
 const PIECE_CATEGORIES = [
-  {
-    name: 'Structure',
-    pieces: [
-      { type: 'BASE_PLATFORM', label: 'Base', icon: '🏠' },
-      { type: 'WALL_FRONT', label: 'Wall F', icon: '🧱' },
-      { type: 'WALL_BACK', label: 'Wall B', icon: '🧱' },
-      { type: 'WALL_LEFT', label: 'Wall L', icon: '🧱' },
-      { type: 'WALL_RIGHT', label: 'Wall R', icon: '🧱' },
-      { type: 'ROOF_LEFT', label: 'Roof L', icon: '⛺' },
-      { type: 'ROOF_RIGHT', label: 'Roof R', icon: '⛺' },
-    ]
-  },
   {
     name: 'Details',
     pieces: [

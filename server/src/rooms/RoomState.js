@@ -106,6 +106,62 @@ export class PieceState {
 }
 
 /**
+ * WallState - Represents a wall segment in the room
+ */
+export class WallState {
+  constructor(start, end, height, createdBy) {
+    this.wallId = nanoid(10)
+    this.start = start // [x, z]
+    this.end = end // [x, z]
+    this.height = height
+    this.thickness = 0.15
+    this.createdBy = createdBy
+    this.createdAt = Date.now()
+    this.version = 1
+  }
+
+  toJSON() {
+    return {
+      wallId: this.wallId,
+      start: this.start,
+      end: this.end,
+      height: this.height,
+      thickness: this.thickness,
+      createdBy: this.createdBy,
+      version: this.version
+    }
+  }
+}
+
+/**
+ * IcingState - Represents an icing stroke in the room
+ */
+export class IcingState {
+  constructor(points, radius, surfaceType, surfaceId, createdBy) {
+    this.icingId = nanoid(10)
+    this.points = points // Array of [x, y, z]
+    this.radius = radius
+    this.surfaceType = surfaceType // 'wall' | 'roof' | 'ground'
+    this.surfaceId = surfaceId
+    this.createdBy = createdBy
+    this.createdAt = Date.now()
+    this.version = 1
+  }
+
+  toJSON() {
+    return {
+      icingId: this.icingId,
+      points: this.points,
+      radius: this.radius,
+      surfaceType: this.surfaceType,
+      surfaceId: this.surfaceId,
+      createdBy: this.createdBy,
+      version: this.version
+    }
+  }
+}
+
+/**
  * RoomState - Represents a collaborative room
  */
 export class RoomState {
@@ -114,6 +170,8 @@ export class RoomState {
     this.users = new Map() // Map<visibleId, UserState>
     this.socketToUser = new Map() // Map<socketId, visibleId>
     this.pieces = new Map() // Map<pieceId, PieceState>
+    this.walls = new Map() // Map<wallId, WallState>
+    this.icing = new Map() // Map<icingId, IcingState>
     this.occupancy = new Map() // Map<cellKey, pieceId>
     this.createdAt = Date.now()
     this.lastActivityAt = Date.now()
@@ -402,12 +460,74 @@ export class RoomState {
     return { valid: false }
   }
 
+  // Wall management
+  createWall(start, end, height, userId) {
+    const wall = new WallState(start, end, height, userId)
+    this.walls.set(wall.wallId, wall)
+    this.lastActivityAt = Date.now()
+    return { wall }
+  }
+
+  deleteWall(wallId, userId) {
+    const wall = this.walls.get(wallId)
+    if (!wall) {
+      return { error: 'WALL_NOT_FOUND' }
+    }
+
+    // Only creator can delete
+    if (wall.createdBy !== userId) {
+      return { error: 'NOT_OWNER' }
+    }
+
+    this.walls.delete(wallId)
+    this.lastActivityAt = Date.now()
+    return { success: true, wall }
+  }
+
+  getWall(wallId) {
+    return this.walls.get(wallId)
+  }
+
+  // Icing management
+  createIcing(points, radius, surfaceType, surfaceId, userId) {
+    if (points.length < 2) {
+      return { error: 'INVALID_POINTS' }
+    }
+
+    const icing = new IcingState(points, radius, surfaceType, surfaceId, userId)
+    this.icing.set(icing.icingId, icing)
+    this.lastActivityAt = Date.now()
+    return { icing }
+  }
+
+  deleteIcing(icingId, userId) {
+    const icing = this.icing.get(icingId)
+    if (!icing) {
+      return { error: 'ICING_NOT_FOUND' }
+    }
+
+    // Only creator can delete
+    if (icing.createdBy !== userId) {
+      return { error: 'NOT_OWNER' }
+    }
+
+    this.icing.delete(icingId)
+    this.lastActivityAt = Date.now()
+    return { success: true, icing }
+  }
+
+  getIcing(icingId) {
+    return this.icing.get(icingId)
+  }
+
   // Snapshot for new clients
   getSnapshot() {
     return {
       roomId: this.roomId,
       users: Array.from(this.users.values()).map(u => u.toJSON()),
       pieces: Array.from(this.pieces.values()).map(p => p.toJSON()),
+      walls: Array.from(this.walls.values()).map(w => w.toJSON()),
+      icing: Array.from(this.icing.values()).map(i => i.toJSON()),
       pieceCount: this.pieceCount,
       maxPieces: ROOM_CONFIG.MAX_PIECES_PER_ROOM
     }

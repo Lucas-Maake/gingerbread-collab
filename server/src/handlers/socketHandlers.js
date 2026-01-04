@@ -1,5 +1,5 @@
 import { roomManager } from '../rooms/RoomManager.js'
-import { PieceState } from '../rooms/RoomState.js'
+import { PieceState, WallState, IcingState } from '../rooms/RoomState.js'
 import { RateLimiter, BroadcastThrottler } from '../utils/TokenBucket.js'
 import { RATE_LIMITS, PIECE_TYPES } from '../constants/config.js'
 
@@ -391,11 +391,246 @@ export function registerSocketHandlers(io, socket) {
         }
         break
 
+      case 'CREATE_WALL':
+        // Undo wall creation = delete the wall
+        undoResult = room.deleteWall(action.wallId, user.userId)
+        if (!undoResult.error) {
+          io.to(room.roomId).emit('wall_segment_deleted', {
+            wallId: action.wallId,
+            deletedBy: user.userId,
+            reason: 'UNDO'
+          })
+        }
+        break
+
+      case 'DELETE_WALL':
+        // Undo wall deletion = recreate the wall
+        const wallData = action.wallData
+        const newWall = new WallState(wallData.start, wallData.end, wallData.height, wallData.createdBy)
+        room.walls.set(newWall.wallId, newWall)
+
+        io.to(room.roomId).emit('wall_segment_created', {
+          wall: newWall.toJSON(),
+          createdBy: user.userId,
+          reason: 'UNDO'
+        })
+        break
+
+      case 'CREATE_ICING':
+        // Undo icing creation = delete the icing
+        undoResult = room.deleteIcing(action.icingId, user.userId)
+        if (!undoResult.error) {
+          io.to(room.roomId).emit('icing_stroke_deleted', {
+            icingId: action.icingId,
+            deletedBy: user.userId,
+            reason: 'UNDO'
+          })
+        }
+        break
+
+      case 'DELETE_ICING':
+        // Undo icing deletion = recreate the icing
+        const icingData = action.icingData
+        const newIcing = new IcingState(
+          icingData.points,
+          icingData.radius,
+          icingData.surfaceType,
+          icingData.surfaceId,
+          icingData.createdBy
+        )
+        room.icing.set(newIcing.icingId, newIcing)
+
+        io.to(room.roomId).emit('icing_stroke_created', {
+          icing: newIcing.toJSON(),
+          createdBy: user.userId,
+          reason: 'UNDO'
+        })
+        break
+
       default:
         return callback({ error: 'UNKNOWN_ACTION' })
     }
 
     callback({ success: true, action: action.action })
+  })
+
+  // ==================== WALL EVENTS ====================
+
+  /**
+   * Create a wall segment
+   * @param {Object} data - { start: [x, z], end: [x, z], height?: number }
+   */
+  socket.on('create_wall_segment', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const { start, end, height = 1.5 } = data
+
+    // Validate input
+    if (!Array.isArray(start) || start.length !== 2 ||
+        !Array.isArray(end) || end.length !== 2) {
+      return callback({ error: 'INVALID_WALL_DATA' })
+    }
+
+    const result = room.createWall(start, end, height, user.userId)
+
+    if (result.error) {
+      return callback({ error: result.error })
+    }
+
+    // Add to undo stack
+    user.addToUndoStack({
+      action: 'CREATE_WALL',
+      wallId: result.wall.wallId
+    })
+
+    // Broadcast to all in room
+    io.to(room.roomId).emit('wall_segment_created', {
+      wall: result.wall.toJSON(),
+      createdBy: user.userId
+    })
+
+    callback({ success: true, wall: result.wall.toJSON() })
+  })
+
+  /**
+   * Delete a wall segment
+   * @param {Object} data - { wallId: string }
+   */
+  socket.on('delete_wall_segment', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const { wallId } = data
+    const wall = room.getWall(wallId)
+
+    // Store for undo
+    const wallData = wall ? wall.toJSON() : null
+
+    const result = room.deleteWall(wallId, user.userId)
+
+    if (result.error) {
+      return callback({ error: result.error })
+    }
+
+    // Add to undo stack
+    if (wallData) {
+      user.addToUndoStack({
+        action: 'DELETE_WALL',
+        wallData
+      })
+    }
+
+    // Broadcast to all in room
+    io.to(room.roomId).emit('wall_segment_deleted', {
+      wallId,
+      deletedBy: user.userId
+    })
+
+    callback({ success: true })
+  })
+
+  // ==================== ICING EVENTS ====================
+
+  /**
+   * Create an icing stroke
+   * @param {Object} data - { points: [[x,y,z],...], radius?: number, surfaceType?: string, surfaceId?: string }
+   */
+  socket.on('create_icing_stroke', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const { points, radius = 0.05, surfaceType = 'ground', surfaceId = null } = data
+
+    // Validate input
+    if (!Array.isArray(points) || points.length < 2) {
+      return callback({ error: 'INVALID_ICING_DATA' })
+    }
+
+    const result = room.createIcing(points, radius, surfaceType, surfaceId, user.userId)
+
+    if (result.error) {
+      return callback({ error: result.error })
+    }
+
+    // Add to undo stack
+    user.addToUndoStack({
+      action: 'CREATE_ICING',
+      icingId: result.icing.icingId
+    })
+
+    // Broadcast to all in room
+    io.to(room.roomId).emit('icing_stroke_created', {
+      icing: result.icing.toJSON(),
+      createdBy: user.userId
+    })
+
+    callback({ success: true, icing: result.icing.toJSON() })
+  })
+
+  /**
+   * Delete an icing stroke
+   * @param {Object} data - { icingId: string }
+   */
+  socket.on('delete_icing_stroke', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const { icingId } = data
+    const icing = room.getIcing(icingId)
+
+    // Store for undo
+    const icingData = icing ? icing.toJSON() : null
+
+    const result = room.deleteIcing(icingId, user.userId)
+
+    if (result.error) {
+      return callback({ error: result.error })
+    }
+
+    // Add to undo stack
+    if (icingData) {
+      user.addToUndoStack({
+        action: 'DELETE_ICING',
+        icingData
+      })
+    }
+
+    // Broadcast to all in room
+    io.to(room.roomId).emit('icing_stroke_deleted', {
+      icingId,
+      deletedBy: user.userId
+    })
+
+    callback({ success: true })
   })
 
   // ==================== DISCONNECT ====================

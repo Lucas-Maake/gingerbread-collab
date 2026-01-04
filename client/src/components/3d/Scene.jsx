@@ -8,6 +8,13 @@ import CameraController from './CameraController'
 import InteractionManager from './InteractionManager'
 import Lighting from './Lighting'
 import SnowParticles from './SnowParticles'
+import GridOverlay from './GridOverlay'
+import WallSegments from './WallSegments'
+import WallPreview from './WallPreview'
+import WallDrawingManager from './WallDrawingManager'
+import AutoRoofs from './AutoRoofs'
+import IcingStrokes from './IcingStrokes'
+import IcingDrawingManager from './IcingDrawingManager'
 
 /**
  * Main 3D Scene component
@@ -50,6 +57,27 @@ export default function Scene() {
 
         {/* Build surface (table/plate) */}
         <BuildSurface />
+
+        {/* Grid overlay for wall/icing drawing */}
+        <GridOverlay />
+
+        {/* Wall segments */}
+        <WallSegments />
+
+        {/* Auto-generated roofs */}
+        <AutoRoofs />
+
+        {/* Wall preview while drawing */}
+        <WallPreview />
+
+        {/* Wall drawing interaction manager */}
+        <WallDrawingManager />
+
+        {/* Icing strokes */}
+        <IcingStrokes />
+
+        {/* Icing drawing interaction manager */}
+        <IcingDrawingManager />
 
         {/* Gingerbread pieces */}
         <Pieces />

@@ -86,7 +86,10 @@ export default function InteractionManager() {
 
       // Get current state from store
       const state = useGameStore.getState()
-      const { heldPieceId, releasePiece } = state
+      const { heldPieceId, releasePiece, buildMode } = state
+
+      // Only handle piece interactions in 'select' mode
+      if (buildMode !== 'select') return
 
       // If holding a piece and clicking on empty space, release it
       if (heldPieceId) {
@@ -143,8 +146,11 @@ export default function InteractionManager() {
         lastCursorUpdate.current = now
       }
 
-      // If dragging, update piece position
+      // Only handle piece dragging in 'select' mode
       const state = useGameStore.getState()
+      if (state.buildMode !== 'select') return
+
+      // If dragging, update piece position
       if (isDragging.current && state.heldPieceId) {
         const heldPiece = state.pieces.get(state.heldPieceId)
         if (!heldPiece) return
@@ -179,16 +185,20 @@ export default function InteractionManager() {
       }
     }
 
-    // Handle right click - delete piece
+    // Handle right click - delete piece (only in select mode)
     const handleContextMenu = async (event) => {
       event.preventDefault()
+
+      const state = useGameStore.getState()
+
+      // Only handle piece deletion in 'select' mode
+      if (state.buildMode !== 'select') return
 
       updateMousePosition(event)
       const intersection = raycastPieces()
 
       if (intersection) {
         const pieceId = intersection.object.userData.pieceId
-        const state = useGameStore.getState()
         const piece = state.pieces.get(pieceId)
 
         // Only spawner can delete
@@ -198,14 +208,35 @@ export default function InteractionManager() {
       }
     }
 
-    // Handle keyboard - rotation
+    // Handle keyboard - rotation and mode switching
     const handleKeyDown = (event) => {
       const state = useGameStore.getState()
-      if (!state.heldPieceId) return
+      const key = event.key.toLowerCase()
+
+      // Mode switching shortcuts (only when not in an input field)
+      if (!event.target.matches('input, textarea')) {
+        switch (key) {
+          case 'v':
+            state.setBuildMode('select')
+            return
+          case 'w':
+            state.setBuildMode('wall')
+            return
+          case 'i':
+            state.setBuildMode('icing')
+            return
+          case 'g':
+            state.toggleGridSnap()
+            return
+        }
+      }
+
+      // Piece rotation only works in select mode with held piece
+      if (state.buildMode !== 'select' || !state.heldPieceId) return
 
       let rotationDelta = 0
 
-      switch (event.key.toLowerCase()) {
+      switch (key) {
         case 'q':
           rotationDelta = ROTATION_SPEED
           break
@@ -245,10 +276,10 @@ export default function InteractionManager() {
       }
     }
 
-    // Handle mouse wheel while holding - also rotate
+    // Handle mouse wheel while holding - also rotate (only in select mode)
     const handleWheel = (event) => {
       const state = useGameStore.getState()
-      if (!state.heldPieceId) return
+      if (state.buildMode !== 'select' || !state.heldPieceId) return
 
       // Only handle if on canvas
       if (event.target !== canvas) return
