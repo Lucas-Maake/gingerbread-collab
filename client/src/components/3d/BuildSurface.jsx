@@ -18,8 +18,6 @@ const WOOD_COLOR = '#C9A07A'
 const WOOD_DARK = '#A8845C'
 const WOOD_LEGS = '#B8956A'
 
-// Icing colors
-const ICING_COLOR = '#FFFEF8'
 
 /**
  * Generate a procedural wood grain texture using canvas
@@ -134,10 +132,11 @@ export default function BuildSurface() {
       {/* Main tabletop surface */}
       <mesh
         ref={meshRef}
+        name="build-surface"
         position={[0, -THICKNESS / 2, 0]}
         receiveShadow
         castShadow
-        raycast={() => null}
+        userData={{ isBuildSurface: true }}
       >
         <boxGeometry args={[WIDTH, THICKNESS, DEPTH]} />
         <meshStandardMaterial
@@ -215,70 +214,7 @@ export default function BuildSurface() {
         <meshStandardMaterial map={textures.apronTex} roughness={0.8} metalness={0.05} />
       </mesh>
 
-      {/* Icing grid lines */}
-      <IcingGrid />
     </group>
   )
 }
 
-/**
- * Icing-style grid lines - white, slightly raised, rounded appearance
- */
-function IcingGrid() {
-  const gridSize = 10
-  const cellSize = 1 // 1 unit cells
-  const lineWidth = 0.04
-  const lineHeight = 0.02
-
-  // Generate grid line meshes
-  const lines = useMemo(() => {
-    const result = []
-    const halfSize = gridSize / 2
-    const numLines = gridSize / cellSize + 1
-
-    // Create lines along X axis (running in Z direction)
-    for (let i = 0; i < numLines; i++) {
-      const x = -halfSize + i * cellSize
-      result.push({
-        key: `x-${i}`,
-        position: [x, lineHeight / 2 + 0.01, 0],
-        size: [lineWidth, lineHeight, gridSize],
-        isEdge: i === 0 || i === numLines - 1
-      })
-    }
-
-    // Create lines along Z axis (running in X direction)
-    for (let i = 0; i < numLines; i++) {
-      const z = -halfSize + i * cellSize
-      result.push({
-        key: `z-${i}`,
-        position: [0, lineHeight / 2 + 0.01, z],
-        size: [gridSize, lineHeight, lineWidth],
-        isEdge: i === 0 || i === numLines - 1
-      })
-    }
-
-    return result
-  }, [])
-
-  return (
-    <group>
-      {lines.map((line) => (
-        <mesh
-          key={line.key}
-          position={line.position}
-          raycast={() => null}
-        >
-          <boxGeometry args={line.size} />
-          <meshStandardMaterial
-            color={ICING_COLOR}
-            roughness={0.3}
-            metalness={0}
-            transparent
-            opacity={line.isEdge ? 0.9 : 0.6}
-          />
-        </mesh>
-      ))}
-    </group>
-  )
-}

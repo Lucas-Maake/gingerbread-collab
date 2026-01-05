@@ -1,0 +1,110 @@
+.reset-room-button {
+  position: absolute;
+  bottom: 140px;
+  right: var(--spacing-md);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 100;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.reset-room-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+}
+
+.reset-room-button:active {
+  transform: scale(0.98);
+}
+
+.reset-room-button svg {
+  flex-shrink: 0;
+}
+
+.reset-room-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Confirmation Dialog */
+.reset-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.reset-confirm-dialog {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border-radius: 16px;
+  padding: var(--spacing-lg);
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.reset-confirm-dialog h3 {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 1.25rem;
+  color: #f87171;
+}
+
+.reset-confirm-dialog p {
+  margin: 0 0 var(--spacing-lg) 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.reset-confirm-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+}
+
+.reset-confirm-cancel {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.reset-confirm-cancel:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.reset-confirm-yes {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  font-weight: 600;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.reset-confirm-yes:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+}
+
+.reset-confirm-yes:disabled,
+.reset-confirm-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

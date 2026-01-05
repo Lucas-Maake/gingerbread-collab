@@ -26,6 +26,7 @@ export const useGameStore = create((set, get) => ({
   gridSnapEnabled: true,
   gridSize: 0.5, // Grid snap increment in world units
   roofStyle: 'pitched', // 'flat' | 'pitched'
+  roofPitchAngle: 45, // Pitched roof angle in degrees (15-75)
 
   // ==================== WALL STATE ====================
   walls: new Map(), // Map<wallId, WallState>
@@ -376,6 +377,7 @@ export const useGameStore = create((set, get) => ({
   setGridSnapEnabled: (enabled) => set({ gridSnapEnabled: enabled }),
   toggleRoofStyle: () => set({ roofStyle: get().roofStyle === 'flat' ? 'pitched' : 'flat' }),
   setRoofStyle: (style) => set({ roofStyle: style }),
+  setRoofPitchAngle: (angle) => set({ roofPitchAngle: Math.max(15, Math.min(75, angle)) }),
 
   // Wall drawing actions
   setWallDrawingStartPoint: (point) => set({ wallDrawingStartPoint: point }),
@@ -450,6 +452,43 @@ export const useGameStore = create((set, get) => ({
     } catch (error) {
       set({ error: error.message })
     }
+  },
+
+  // Reset room - delete all pieces, walls, and icing
+  resetRoom: async () => {
+    const state = get()
+
+    // Delete all pieces
+    const pieceIds = Array.from(state.pieces.keys())
+    for (const pieceId of pieceIds) {
+      try {
+        await socket.deletePiece(pieceId)
+      } catch (error) {
+        console.error('Failed to delete piece:', pieceId, error)
+      }
+    }
+
+    // Delete all walls
+    const wallIds = Array.from(state.walls.keys())
+    for (const wallId of wallIds) {
+      try {
+        await socket.deleteWallSegment(wallId)
+      } catch (error) {
+        console.error('Failed to delete wall:', wallId, error)
+      }
+    }
+
+    // Delete all icing
+    const icingIds = Array.from(state.icing.keys())
+    for (const icingId of icingIds) {
+      try {
+        await socket.deleteIcingStroke(icingId)
+      } catch (error) {
+        console.error('Failed to delete icing:', icingId, error)
+      }
+    }
+
+    playGlobalSound(SoundType.DELETE)
   },
 
   // Icing socket event handlers

@@ -6,8 +6,24 @@ import { getRoofPolygons } from '../../utils/roofGeneration'
 const WALL_HEIGHT = 1.5
 const ROOF_THICKNESS = 0.1
 const ROOF_OVERHANG = 0.15
-const PITCHED_ROOF_HEIGHT = 0.8 // Height of the ridge above wall top
-const ROOF_EMISSIVE = '#2a1507'
+const ROOF_EMISSIVE = '#4a3020'
+
+// Calculate pitched roof height based on angle and average roof span
+function calculateRoofHeight(vertices, angleDegrees) {
+  // Find the average distance from center to edges (approximate roof span / 2)
+  const centerX = vertices.reduce((sum, [x]) => sum + x, 0) / vertices.length
+  const centerZ = vertices.reduce((sum, [, z]) => sum + z, 0) / vertices.length
+
+  let avgDist = 0
+  for (const [x, z] of vertices) {
+    avgDist += Math.sqrt((x - centerX) ** 2 + (z - centerZ) ** 2)
+  }
+  avgDist /= vertices.length
+
+  // Height = distance * tan(angle)
+  const angleRadians = (angleDegrees * Math.PI) / 180
+  return avgDist * Math.tan(angleRadians)
+}
 
 /**
  * Create a procedural gingerbread texture for roofs
@@ -18,8 +34,8 @@ function createGingerbreadTexture(width = 256, height = 256) {
   canvas.height = height
   const ctx = canvas.getContext('2d')
 
-  // Base gingerbread color (slightly darker for roof)
-  const baseR = 130, baseG = 60, baseB = 15
+  // Base gingerbread color (lighter, similar to table but slightly darker)
+  const baseR = 176, baseG = 140, baseB = 98 // Slightly darker than walls
 
   ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`
   ctx.fillRect(0, 0, width, height)
@@ -60,8 +76,8 @@ function createGingerbreadTexture(width = 256, height = 256) {
     const spotRadius = 3 + Math.random() * 8
 
     const gradient = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, spotRadius)
-    gradient.addColorStop(0, 'rgba(60, 30, 10, 0.3)')
-    gradient.addColorStop(1, 'rgba(60, 30, 10, 0)')
+    gradient.addColorStop(0, 'rgba(130, 95, 55, 0.25)')
+    gradient.addColorStop(1, 'rgba(130, 95, 55, 0)')
 
     ctx.fillStyle = gradient
     ctx.beginPath()
@@ -89,7 +105,7 @@ function getRoofTexture() {
 /**
  * Single roof polygon component
  */
-function RoofPolygon({ vertices, roofStyle }) {
+function RoofPolygon({ vertices, roofStyle, pitchAngle }) {
   const texture = useMemo(() => getRoofTexture(), [])
 
   const geometry = useMemo(() => {
@@ -115,7 +131,9 @@ function RoofPolygon({ vertices, roofStyle }) {
       const positions = []
       const normals = []
 
-      const ridgeY = WALL_HEIGHT + PITCHED_ROOF_HEIGHT
+      // Calculate roof height based on pitch angle
+      const pitchedRoofHeight = calculateRoofHeight(expandedVertices, pitchAngle)
+      const ridgeY = WALL_HEIGHT + pitchedRoofHeight
       const baseY = WALL_HEIGHT
 
       // Create triangular faces from each edge to the center peak
@@ -172,7 +190,7 @@ function RoofPolygon({ vertices, roofStyle }) {
 
       return geo
     }
-  }, [vertices, roofStyle])
+  }, [vertices, roofStyle, pitchAngle])
 
   if (!geometry) return null
 
@@ -197,6 +215,7 @@ function RoofPolygon({ vertices, roofStyle }) {
 export default function AutoRoofs() {
   const walls = useGameStore((state) => state.walls)
   const roofStyle = useGameStore((state) => state.roofStyle)
+  const roofPitchAngle = useGameStore((state) => state.roofPitchAngle)
 
   // Compute roof polygons from walls
   // This is memoized and will only recompute when walls change
@@ -210,9 +229,10 @@ export default function AutoRoofs() {
     <group name="auto-roofs">
       {roofPolygons.map((roof, index) => (
         <RoofPolygon
-          key={`roof-${index}-${roof.vertices.length}-${roofStyle}`}
+          key={`roof-${index}-${roof.vertices.length}-${roofStyle}-${roofPitchAngle}`}
           vertices={roof.vertices}
           roofStyle={roofStyle}
+          pitchAngle={roofPitchAngle}
         />
       ))}
     </group>

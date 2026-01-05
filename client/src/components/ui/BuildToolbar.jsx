@@ -8,6 +8,8 @@ export default function BuildToolbar() {
   const toggleGridSnap = useGameStore((state) => state.toggleGridSnap)
   const roofStyle = useGameStore((state) => state.roofStyle)
   const toggleRoofStyle = useGameStore((state) => state.toggleRoofStyle)
+  const roofPitchAngle = useGameStore((state) => state.roofPitchAngle)
+  const setRoofPitchAngle = useGameStore((state) => state.setRoofPitchAngle)
 
   return (
     <div className="build-toolbar">
@@ -76,6 +78,24 @@ export default function BuildToolbar() {
           <span>{roofStyle === 'pitched' ? 'Pitched' : 'Flat'}</span>
         </button>
       </div>
+
+      {roofStyle === 'pitched' && (
+        <>
+          <div className="toolbar-divider" />
+          <div className="toolbar-section slider-section">
+            <span className="toolbar-label">Roof Angle: {roofPitchAngle}°</span>
+            <input
+              type="range"
+              className="roof-angle-slider"
+              min="15"
+              max="75"
+              value={roofPitchAngle}
+              onChange={(e) => setRoofPitchAngle(Number(e.target.value))}
+              title="Adjust roof pitch angle"
+            />
+          </div>
+        </>
+      )}
 
       {buildMode === 'wall' && (
         <div className="toolbar-hint">

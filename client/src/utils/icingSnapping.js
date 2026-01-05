@@ -36,6 +36,7 @@ export function getRoofMeshes(scene) {
 
 /**
  * Raycast from mouse position to find surface to draw on
+ * Only allows drawing on walls, roofs, and the top of the table
  * Returns { point, normal, surfaceType, surfaceId } or null
  */
 export function raycastToSurface(mousePos, camera, scene) {
@@ -45,7 +46,7 @@ export function raycastToSurface(mousePos, camera, scene) {
   // Get all potential surfaces
   const wallMeshes = []
   const roofMeshes = []
-  const groundMesh = []
+  const tableMesh = []
 
   scene.traverse((child) => {
     if (!child.isMesh) return
@@ -55,28 +56,16 @@ export function raycastToSurface(mousePos, camera, scene) {
     } else if (child.parent?.name === 'auto-roofs') {
       roofMeshes.push(child)
     } else if (child.name === 'build-surface' || child.userData.isBuildSurface) {
-      groundMesh.push(child)
+      tableMesh.push(child)
     }
   })
 
-  // Priority: walls > roofs > ground
-  const allMeshes = [...wallMeshes, ...roofMeshes, ...groundMesh]
+  // Priority: walls > roofs > table
+  const allMeshes = [...wallMeshes, ...roofMeshes, ...tableMesh]
   const intersects = raycaster.intersectObjects(allMeshes, false)
 
+  // No fallback - if no valid surface is hit, return null
   if (intersects.length === 0) {
-    // Fall back to ground plane if no mesh hit
-    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-    const intersectPoint = new THREE.Vector3()
-    raycaster.ray.intersectPlane(groundPlane, intersectPoint)
-
-    if (intersectPoint) {
-      return {
-        point: [intersectPoint.x, 0.02, intersectPoint.z],
-        normal: [0, 1, 0],
-        surfaceType: 'ground',
-        surfaceId: null
-      }
-    }
     return null
   }
 
@@ -88,11 +77,8 @@ export function raycastToSurface(mousePos, camera, scene) {
   const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)
   normal.applyMatrix3(normalMatrix).normalize()
 
-  // Offset point slightly away from surface
-  point.add(normal.clone().multiplyScalar(SNAP_OFFSET))
-
   // Determine surface type
-  let surfaceType = 'ground'
+  let surfaceType = null
   let surfaceId = null
 
   if (hit.object.userData.wallId) {
@@ -100,8 +86,25 @@ export function raycastToSurface(mousePos, camera, scene) {
     surfaceId = hit.object.userData.wallId
   } else if (hit.object.parent?.name === 'auto-roofs') {
     surfaceType = 'roof'
-    surfaceId = null // Roofs don't have individual IDs
+    surfaceId = null
+  } else if (hit.object.name === 'build-surface' || hit.object.userData.isBuildSurface) {
+    // Only allow drawing on the TOP face of the table (normal pointing up)
+    if (normal.y > 0.9) {
+      surfaceType = 'table'
+      surfaceId = null
+    } else {
+      // Hit a side or bottom of table - not allowed
+      return null
+    }
   }
+
+  // If no valid surface type determined, return null
+  if (!surfaceType) {
+    return null
+  }
+
+  // Offset point slightly away from surface
+  point.add(normal.clone().multiplyScalar(SNAP_OFFSET))
 
   return {
     point: [point.x, point.y, point.z],

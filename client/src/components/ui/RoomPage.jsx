@@ -8,6 +8,7 @@ import MuteButton from './MuteButton'
 import SfxMuteButton from './SfxMuteButton'
 import ScreenshotButton from './ScreenshotButton'
 import ResetCameraButton from './ResetCameraButton'
+import ResetRoomButton from './ResetRoomButton'
 import SnowControl from './SnowControl'
 import BuildToolbar from './BuildToolbar'
 import './RoomPage.css'
@@ -170,6 +171,9 @@ export default function RoomPage() {
 
       {/* Reset Camera Button */}
       <ResetCameraButton />
+
+      {/* Reset Room Button */}
+      <ResetRoomButton />
 
       {/* Snow Control */}
       <SnowControl />

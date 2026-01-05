@@ -15,6 +15,7 @@ import WallDrawingManager from './WallDrawingManager'
 import AutoRoofs from './AutoRoofs'
 import IcingStrokes from './IcingStrokes'
 import IcingDrawingManager from './IcingDrawingManager'
+import FrostedBackground from './FrostedBackground'
 
 /**
  * Main 3D Scene component
@@ -30,22 +31,25 @@ export default function Scene() {
         powerPreference: 'high-performance',
         preserveDrawingBuffer: true // Required for screenshots
       }}
-      style={{ background: 'linear-gradient(180deg, #FFA270 0%, #FFE4EC 100%)' }}
+      style={{ background: '#E8EEF4' }}
       onCreated={({ gl }) => {
-        gl.setClearColor('#FFD6DC')
+        gl.setClearColor('#E8EEF4')
       }}
     >
       {/* Orthographic camera for isometric view */}
       <OrthographicCamera
         makeDefault
         position={[15, 15, 15]}
-        zoom={50}
+        zoom={70}
         near={0.1}
         far={1000}
       />
 
       {/* Loading fallback */}
       <Suspense fallback={<LoadingIndicator />}>
+        {/* Frosted window background */}
+        <FrostedBackground />
+
         {/* Camera controls */}
         <CameraController />
 

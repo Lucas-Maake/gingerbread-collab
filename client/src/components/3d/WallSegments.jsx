@@ -2,9 +2,9 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
 
-// Gingerbread wall colors
-const WALL_COLOR = '#8B4513'
-const WALL_EMISSIVE = '#2a1507'
+// Gingerbread wall colors (lighter, similar to table)
+const WALL_COLOR = '#B8956A'
+const WALL_EMISSIVE = '#4a3020'
 
 /**
  * Create a procedural gingerbread texture using canvas
@@ -15,8 +15,8 @@ function createGingerbreadTexture(width = 256, height = 256) {
   canvas.height = height
   const ctx = canvas.getContext('2d')
 
-  // Base gingerbread color
-  const baseR = 139, baseG = 69, baseB = 19 // #8B4513
+  // Base gingerbread color (lighter, similar to table)
+  const baseR = 184, baseG = 149, baseB = 106 // #B8956A
 
   // Fill with base color
   ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`
@@ -58,7 +58,7 @@ function createGingerbreadTexture(width = 256, height = 256) {
 
   ctx.putImageData(imageData, 0, 0)
 
-  // Add some darker edge spots (like slightly burnt edges)
+  // Add some darker edge spots (like slightly darker baked areas)
   const edgeSpots = 5 + Math.floor(Math.random() * 5)
   for (let i = 0; i < edgeSpots; i++) {
     const spotX = Math.random() * width
@@ -66,8 +66,8 @@ function createGingerbreadTexture(width = 256, height = 256) {
     const spotRadius = 3 + Math.random() * 8
 
     const gradient = ctx.createRadialGradient(spotX, spotY, 0, spotX, spotY, spotRadius)
-    gradient.addColorStop(0, 'rgba(60, 30, 10, 0.3)')
-    gradient.addColorStop(1, 'rgba(60, 30, 10, 0)')
+    gradient.addColorStop(0, 'rgba(140, 100, 60, 0.25)')
+    gradient.addColorStop(1, 'rgba(140, 100, 60, 0)')
 
     ctx.fillStyle = gradient
     ctx.beginPath()
