@@ -123,6 +123,21 @@ function FallbackGeometry({
   castShadow,
   receiveShadow
 }) {
+  // Use custom tree geometry for trees
+  if (config.geometry === 'tree') {
+    return (
+      <TreeGeometry
+        config={config}
+        color={color}
+        opacity={opacity}
+        emissive={emissive}
+        emissiveIntensity={emissiveIntensity}
+        castShadow={castShadow}
+        receiveShadow={receiveShadow}
+      />
+    )
+  }
+
   return (
     <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
       <PrimitiveGeometry type={config.geometry} size={config.size} />
@@ -155,4 +170,67 @@ function PrimitiveGeometry({ type, size }) {
     default:
       return <boxGeometry args={size} />
   }
+}
+
+/**
+ * Custom tree geometry - tiered Christmas tree with trunk
+ */
+function TreeGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
+  const treeColor = color || config.color
+  const trunkColor = '#8B4513'
+
+  return (
+    <group>
+      {/* Trunk */}
+      <mesh position={[0, -0.18, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <cylinderGeometry args={[0.04, 0.05, 0.1, 8]} />
+        <meshStandardMaterial
+          color={trunkColor}
+          roughness={0.8}
+          metalness={0}
+          opacity={opacity}
+          transparent={opacity < 1}
+        />
+      </mesh>
+      {/* Bottom tier - largest */}
+      <mesh position={[0, -0.08, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <coneGeometry args={[0.18, 0.18, 8]} />
+        <meshStandardMaterial
+          color={treeColor}
+          roughness={0.6}
+          metalness={0.1}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
+      </mesh>
+      {/* Middle tier */}
+      <mesh position={[0, 0.06, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <coneGeometry args={[0.14, 0.16, 8]} />
+        <meshStandardMaterial
+          color={treeColor}
+          roughness={0.6}
+          metalness={0.1}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
+      </mesh>
+      {/* Top tier - smallest */}
+      <mesh position={[0, 0.18, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <coneGeometry args={[0.1, 0.14, 8]} />
+        <meshStandardMaterial
+          color={treeColor}
+          roughness={0.6}
+          metalness={0.1}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
+      </mesh>
+    </group>
+  )
 }

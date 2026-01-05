@@ -45,13 +45,32 @@ float noise(vec2 p) {
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-// === INDIVIDUAL TREE SHAPE ===
+// === INDIVIDUAL TREE SHAPE (tiered Christmas tree) ===
 float treeShape(vec2 uv, vec2 pos, float height, float width) {
   vec2 p = uv - pos;
-  // Triangle tree shape
-  float trunk = step(abs(p.x), 0.003) * step(0.0, p.y) * step(p.y, height * 0.15);
-  float crown = step(p.y, height) * step(abs(p.x), width * (1.0 - p.y / height));
-  return max(trunk, crown);
+
+  // Trunk
+  float trunk = step(abs(p.x), width * 0.15) * step(0.0, p.y) * step(p.y, height * 0.12);
+
+  // Bottom tier - widest
+  float tier1Y = height * 0.08;
+  float tier1H = height * 0.35;
+  float tier1 = step(tier1Y, p.y) * step(p.y, tier1Y + tier1H) *
+                step(abs(p.x), width * (1.0 - (p.y - tier1Y) / tier1H));
+
+  // Middle tier
+  float tier2Y = height * 0.30;
+  float tier2H = height * 0.35;
+  float tier2 = step(tier2Y, p.y) * step(p.y, tier2Y + tier2H) *
+                step(abs(p.x), width * 0.8 * (1.0 - (p.y - tier2Y) / tier2H));
+
+  // Top tier - narrowest
+  float tier3Y = height * 0.52;
+  float tier3H = height * 0.48;
+  float tier3 = step(tier3Y, p.y) * step(p.y, tier3Y + tier3H) *
+                step(abs(p.x), width * 0.6 * (1.0 - (p.y - tier3Y) / tier3H));
+
+  return max(max(max(trunk, tier1), tier2), tier3);
 }
 
 // === WINTER SCENE ===
@@ -70,14 +89,14 @@ vec3 winterScene(vec2 uv) {
   vec3 mountainColor2 = vec3(0.75, 0.78, 0.86);
 
   // Rolling hills
-  float hillLine = 0.24 + noise(vec2(uv.x * 3.0, 1.0)) * 0.05;
+  float hillLine = 0.30 + noise(vec2(uv.x * 3.0, 1.0)) * 0.05;
   vec3 hillColor = vec3(0.82, 0.84, 0.88);
 
-  // Forest tree line base
-  float forestBase = 0.18 + noise(vec2(uv.x * 6.0, 2.0)) * 0.03;
+  // Forest tree line base - moved up
+  float forestBase = 0.26 + noise(vec2(uv.x * 6.0, 2.0)) * 0.03;
   vec3 forestColor = vec3(0.22, 0.30, 0.26);
 
-  // Snow ground with texture
+  // Snow ground with texture - moved up
   float groundNoise = noise(vec2(uv.x * 20.0, uv.y * 5.0)) * 0.02;
   vec3 snowColor = vec3(0.94 + groundNoise, 0.96 + groundNoise, 0.98);
   vec3 snowShadow = vec3(0.88, 0.91, 0.95);
@@ -95,24 +114,24 @@ vec3 winterScene(vec2 uv) {
   // Forest base
   scene = mix(scene, forestColor, smoothstep(forestBase + 0.01, forestBase - 0.003, uv.y) * 0.8);
 
-  // Individual trees (scattered along the tree line)
+  // Individual trees (scattered along the tree line) - taller and more prominent
   float trees = 0.0;
-  for (float i = 0.0; i < 12.0; i++) {
+  for (float i = 0.0; i < 15.0; i++) {
     float xPos = hash(vec2(i * 7.3, 0.0));
-    float treeHeight = 0.04 + hash(vec2(i * 3.1, 1.0)) * 0.035;
-    float treeWidth = 0.012 + hash(vec2(i * 5.7, 2.0)) * 0.008;
+    float treeHeight = 0.06 + hash(vec2(i * 3.1, 1.0)) * 0.05;
+    float treeWidth = 0.018 + hash(vec2(i * 5.7, 2.0)) * 0.012;
     float yBase = forestBase + noise(vec2(xPos * 6.0, 2.0)) * 0.03 - 0.01;
     trees = max(trees, treeShape(uv, vec2(xPos, yBase), treeHeight, treeWidth));
   }
   scene = mix(scene, forestColor * 0.85, trees);
 
-  // Snow ground
-  float groundBlend = smoothstep(0.16, 0.10, uv.y);
+  // Snow ground - moved up
+  float groundBlend = smoothstep(0.24, 0.18, uv.y);
   scene = mix(scene, snowColor, groundBlend);
 
-  // Snow shadows/drifts
+  // Snow shadows/drifts - moved up
   float driftNoise = noise(vec2(uv.x * 15.0, 0.0));
-  float drift = smoothstep(0.12, 0.08, uv.y) * driftNoise * 0.3;
+  float drift = smoothstep(0.20, 0.16, uv.y) * driftNoise * 0.3;
   scene = mix(scene, snowShadow, drift);
 
   return scene;

@@ -10,6 +10,16 @@ const PIECE_CATEGORIES = [
       { type: 'DOOR', label: 'Door', icon: '🚪' },
       { type: 'WINDOW_SMALL', label: 'Window S', icon: '🪟' },
       { type: 'WINDOW_LARGE', label: 'Window L', icon: '🪟' },
+      { type: 'CHIMNEY', label: 'Chimney', icon: '🧱' },
+      { type: 'FENCE_POST', label: 'Fence', icon: '🪵' },
+    ]
+  },
+  {
+    name: 'Cookies',
+    pieces: [
+      { type: 'GINGERBREAD_MAN', label: 'Person', icon: '🧑' },
+      { type: 'COOKIE_STAR', label: 'Star', icon: '⭐' },
+      { type: 'COOKIE_HEART', label: 'Heart', icon: '💗' },
     ]
   },
   {
@@ -18,6 +28,17 @@ const PIECE_CATEGORIES = [
       { type: 'CANDY_CANE', label: 'Cane', icon: '🍬' },
       { type: 'GUMDROP', label: 'Gumdrop', icon: '🍭' },
       { type: 'PEPPERMINT', label: 'Mint', icon: '⚪' },
+      { type: 'CANDY_BUTTON', label: 'Button', icon: '🔴' },
+      { type: 'LICORICE', label: 'Licorice', icon: '⬛' },
+    ]
+  },
+  {
+    name: 'Decor',
+    pieces: [
+      { type: 'MINI_TREE', label: 'Tree', icon: '🎄' },
+      { type: 'SNOWFLAKE', label: 'Snowflake', icon: '❄️' },
+      { type: 'FROSTING_DOLLOP', label: 'Frosting', icon: '🍦' },
+      { type: 'PRESENT', label: 'Present', icon: '🎁' },
     ]
   }
 ]

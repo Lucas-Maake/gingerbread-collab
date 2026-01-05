@@ -1,6 +1,6 @@
 .reset-room-button {
   position: absolute;
-  bottom: 140px;
+  bottom: 230px;
   right: var(--spacing-md);
   background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
   color: white;
