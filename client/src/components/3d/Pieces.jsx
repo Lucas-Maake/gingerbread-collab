@@ -140,27 +140,27 @@ export const PIECE_CONFIGS = {
     allowColorOverride: true
   },
   GINGERBREAD_MAN: {
-    geometry: 'box',
+    geometry: 'gingerbreadMan',
     size: [0.3, 0.45, 0.08],
-    boundingSize: [0.3, 0.45, 0.08],
+    boundingSize: [0.25, 0.45, 0.15],
     color: GINGERBREAD_COLOR,
     yOffset: 0.225,
     allowColorOverride: false
   },
   COOKIE_STAR: {
-    geometry: 'cylinder',
-    size: [0.2, 0.2, 0.06, 5],
-    boundingSize: [0.4, 0.06, 0.4],
+    geometry: 'star',
+    size: [0.3, 0.06, 0.3],
+    boundingSize: [0.35, 0.06, 0.35],
     color: '#DEB887',
     yOffset: 0.03,
     allowColorOverride: false
   },
   COOKIE_HEART: {
-    geometry: 'sphere',
-    size: [0.15, 12, 8],
-    boundingSize: [0.3, 0.2, 0.08],
+    geometry: 'heart',
+    size: [0.32, 0.06, 0.28],
+    boundingSize: [0.35, 0.06, 0.3],
     color: '#FFB6C1',
-    yOffset: 0.1,
+    yOffset: 0.03,
     allowColorOverride: false
   },
   MINI_TREE: {
@@ -172,59 +172,59 @@ export const PIECE_CONFIGS = {
     allowColorOverride: false
   },
   SNOWFLAKE: {
-    geometry: 'cylinder',
-    size: [0.18, 0.18, 0.03, 6],
-    boundingSize: [0.36, 0.03, 0.36],
+    geometry: 'snowflake',
+    size: [0.36, 0.03, 0.36],
+    boundingSize: [0.36, 0.04, 0.36],
     color: '#E0FFFF',
-    yOffset: 0.015,
+    yOffset: 0.02,
     allowColorOverride: false
   },
   CANDY_BUTTON: {
-    geometry: 'cylinder',
-    size: [0.08, 0.08, 0.04, 16],
-    boundingSize: [0.16, 0.04, 0.16],
+    geometry: 'candyButton',
+    size: [0.16, 0.08, 0.16],
+    boundingSize: [0.16, 0.08, 0.16],
     color: CANDY_RED,
-    yOffset: 0.02,
+    yOffset: 0.04,
     allowColorOverride: true
   },
   LICORICE: {
-    geometry: 'cylinder',
-    size: [0.04, 0.04, 0.4, 8],
+    geometry: 'licorice',
+    size: [0.08, 0.4, 0.08],
     boundingSize: [0.08, 0.4, 0.08],
     color: '#1a1a1a',
     yOffset: 0.2,
     allowColorOverride: false
   },
   FROSTING_DOLLOP: {
-    geometry: 'sphere',
-    size: [0.1, 12, 8],
+    geometry: 'frostingDollop',
+    size: [0.2, 0.15, 0.2],
     boundingSize: [0.2, 0.15, 0.2],
     color: FROSTING_COLOR,
     yOffset: 0.075,
     allowColorOverride: false
   },
   CHIMNEY: {
-    geometry: 'box',
-    size: [0.3, 0.5, 0.3],
+    geometry: 'chimney',
+    size: [0.28, 0.5, 0.28],
     boundingSize: [0.3, 0.5, 0.3],
     color: '#8B0000',
     yOffset: 0.25,
     allowColorOverride: false
   },
   FENCE_POST: {
-    geometry: 'box',
-    size: [0.08, 0.4, 0.08],
-    boundingSize: [0.08, 0.4, 0.08],
+    geometry: 'fencePost',
+    size: [0.1, 0.45, 0.1],
+    boundingSize: [0.1, 0.45, 0.1],
     color: GINGERBREAD_COLOR,
-    yOffset: 0.2,
+    yOffset: 0.225,
     allowColorOverride: false
   },
   PRESENT: {
-    geometry: 'box',
-    size: [0.25, 0.25, 0.25],
-    boundingSize: [0.25, 0.25, 0.25],
+    geometry: 'present',
+    size: [0.22, 0.22, 0.22],
+    boundingSize: [0.22, 0.22, 0.22],
     color: CANDY_RED,
-    yOffset: 0.125,
+    yOffset: 0.11,
     allowColorOverride: true
   }
 }

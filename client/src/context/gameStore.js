@@ -73,13 +73,29 @@ export const useGameStore = create((set, get) => ({
       // Ensure connected
       if (!socket.isConnected()) {
         socket.connect()
-        // Wait for connection
+        // Wait for connection with proper cleanup to avoid race conditions
         await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000)
-          const checkConnection = setInterval(() => {
-            if (socket.isConnected()) {
-              clearInterval(checkConnection)
-              clearTimeout(timeout)
+          let settled = false
+          let checkConnection = null
+          let timeout = null
+
+          const cleanup = () => {
+            if (checkConnection) clearInterval(checkConnection)
+            if (timeout) clearTimeout(timeout)
+          }
+
+          timeout = setTimeout(() => {
+            if (!settled) {
+              settled = true
+              cleanup()
+              reject(new Error('Connection timeout'))
+            }
+          }, 10000)
+
+          checkConnection = setInterval(() => {
+            if (!settled && socket.isConnected()) {
+              settled = true
+              cleanup()
               resolve()
             }
           }, 100)
@@ -505,13 +521,21 @@ export const useGameStore = create((set, get) => ({
   }
 }))
 
+// Track if listeners have been initialized to prevent duplicates
+let listenersInitialized = false
+
 /**
  * Initialize socket event listeners
- * Call this once when app starts
+ * Call this once when app starts - prevents duplicate registration
  */
 export function initSocketListeners() {
-  const store = useGameStore.getState()
+  // Prevent duplicate listener registration
+  if (listenersInitialized) {
+    return
+  }
+  listenersInitialized = true
 
+  // Use fresh store reference for each event to avoid stale closures
   socket.on('connect', () => {
     useGameStore.setState({ connectionState: 'connected' })
   })
@@ -524,22 +548,23 @@ export function initSocketListeners() {
     useGameStore.setState({ connectionState: 'error' })
   })
 
-  socket.on('user_joined', store.handleUserJoined)
-  socket.on('user_left', store.handleUserLeft)
-  socket.on('cursor_moved', store.handleCursorMoved)
-  socket.on('piece_spawned', store.handlePieceSpawned)
-  socket.on('piece_grabbed', store.handlePieceGrabbed)
-  socket.on('piece_released', store.handlePieceReleased)
-  socket.on('piece_moved', store.handlePieceMoved)
-  socket.on('piece_deleted', store.handlePieceDeleted)
+  // Use getState() in handlers to always get fresh store state
+  socket.on('user_joined', (data) => useGameStore.getState().handleUserJoined(data))
+  socket.on('user_left', (data) => useGameStore.getState().handleUserLeft(data))
+  socket.on('cursor_moved', (data) => useGameStore.getState().handleCursorMoved(data))
+  socket.on('piece_spawned', (data) => useGameStore.getState().handlePieceSpawned(data))
+  socket.on('piece_grabbed', (data) => useGameStore.getState().handlePieceGrabbed(data))
+  socket.on('piece_released', (data) => useGameStore.getState().handlePieceReleased(data))
+  socket.on('piece_moved', (data) => useGameStore.getState().handlePieceMoved(data))
+  socket.on('piece_deleted', (data) => useGameStore.getState().handlePieceDeleted(data))
 
   // Wall events
-  socket.on('wall_segment_created', store.handleWallCreated)
-  socket.on('wall_segment_deleted', store.handleWallDeleted)
+  socket.on('wall_segment_created', (data) => useGameStore.getState().handleWallCreated(data))
+  socket.on('wall_segment_deleted', (data) => useGameStore.getState().handleWallDeleted(data))
 
   // Icing events
-  socket.on('icing_stroke_created', store.handleIcingCreated)
-  socket.on('icing_stroke_deleted', store.handleIcingDeleted)
+  socket.on('icing_stroke_created', (data) => useGameStore.getState().handleIcingCreated(data))
+  socket.on('icing_stroke_deleted', (data) => useGameStore.getState().handleIcingDeleted(data))
 }
 
 /**
@@ -547,4 +572,5 @@ export function initSocketListeners() {
  */
 export function cleanupSocketListeners() {
   socket.cleanup()
+  listenersInitialized = false
 }

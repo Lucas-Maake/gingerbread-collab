@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useGameStore, initSocketListeners } from '../../context/gameStore'
 import Scene from '../3d/Scene'
@@ -21,12 +21,9 @@ export default function RoomPage() {
   const hasJoined = useRef(false)
 
   // Get state from store
-  const joinRoom = useGameStore((state) => state.joinRoom)
-  const leaveRoom = useGameStore((state) => state.leaveRoom)
   const connectionState = useGameStore((state) => state.connectionState)
   const pieceCount = useGameStore((state) => state.pieceCount)
   const maxPieces = useGameStore((state) => state.maxPieces)
-  const undo = useGameStore((state) => state.undo)
 
   // Join room on mount
   useEffect(() => {
@@ -39,6 +36,9 @@ export default function RoomPage() {
     // Initialize socket listeners
     initSocketListeners()
 
+    // Get fresh store functions to avoid stale closures
+    const { joinRoom, leaveRoom } = useGameStore.getState()
+
     // Join the room
     joinRoom(roomId, userName)
       .then(() => {
@@ -50,24 +50,28 @@ export default function RoomPage() {
         setIsJoining(false)
       })
 
-    // Cleanup on unmount
+    // Cleanup on unmount - get fresh leaveRoom reference
     return () => {
-      leaveRoom()
+      useGameStore.getState().leaveRoom()
     }
   }, [roomId])
 
-  // Handle undo keyboard shortcut
+  // Handle undo keyboard shortcut - use callback to avoid stale closure
+  const handleUndo = useCallback(() => {
+    useGameStore.getState().undo()
+  }, [])
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault()
-        undo()
+        handleUndo()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo])
+  }, [handleUndo])
 
   // Handle connection error
   if (error) {

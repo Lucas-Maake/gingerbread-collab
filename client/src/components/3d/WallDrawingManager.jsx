@@ -20,6 +20,7 @@ export default function WallDrawingManager() {
   const mouse = useRef(new THREE.Vector2())
   const dragPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0))
   const intersectPoint = useRef(new THREE.Vector3())
+  const isCreatingWall = useRef(false) // Prevent race conditions during wall creation
 
   useEffect(() => {
     const canvas = gl.domElement
@@ -50,12 +51,15 @@ export default function WallDrawingManager() {
       ]
     }
 
-    const handleMouseDown = async (event) => {
+    const handleMouseDown = (event) => {
       // Only handle left click
       if (event.button !== 0) return
 
       // Ignore if shift is held (camera pan)
       if (event.shiftKey) return
+
+      // Prevent rapid clicks during wall creation
+      if (isCreatingWall.current) return
 
       const state = useGameStore.getState()
 
@@ -92,12 +96,19 @@ export default function WallDrawingManager() {
         const length = Math.sqrt(dx * dx + dz * dz)
 
         if (length >= 0.3) {
-          // Create the wall
-          await state.createWall([startX, startZ], [clampedX, clampedZ])
-        }
+          // Create the wall - handle promise without async/await
+          isCreatingWall.current = true
 
-        // Reset for next wall
-        state.clearWallDrawingStartPoint()
+          state.createWall([startX, startZ], [clampedX, clampedZ])
+            .finally(() => {
+              isCreatingWall.current = false
+              // Reset for next wall after creation completes
+              useGameStore.getState().clearWallDrawingStartPoint()
+            })
+        } else {
+          // Wall too short - just reset
+          state.clearWallDrawingStartPoint()
+        }
       }
     }
 

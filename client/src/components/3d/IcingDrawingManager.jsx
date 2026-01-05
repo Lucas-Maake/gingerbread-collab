@@ -18,6 +18,7 @@ export default function IcingDrawingManager() {
 
   const mouse = useRef(new THREE.Vector2())
   const isDrawing = useRef(false)
+  const isSendingStroke = useRef(false) // Prevent race conditions during send
   const lastPointTime = useRef(0)
   const currentSurfaceType = useRef('ground')
   const currentSurfaceId = useRef(null)
@@ -91,11 +92,14 @@ export default function IcingDrawingManager() {
       lastPointTime.current = now
     }
 
-    const handleMouseUp = async (event) => {
+    const handleMouseUp = (event) => {
       const state = useGameStore.getState()
 
       // Only handle in icing mode while drawing
       if (state.buildMode !== 'icing' || !isDrawing.current) return
+
+      // Prevent double-sends from rapid mouse up events
+      if (isSendingStroke.current) return
 
       isDrawing.current = false
 
@@ -105,21 +109,28 @@ export default function IcingDrawingManager() {
       // Filter points that are too close together
       const filteredPoints = filterPoints(points, MIN_POINT_DISTANCE)
 
-      // End the drawing state
+      // End the drawing state immediately for UI responsiveness
       state.endIcingStroke()
 
       // Send to server if we have enough points
       if (filteredPoints.length >= 2) {
-        await state.createIcing(
+        isSendingStroke.current = true
+
+        // Handle promise without async/await to avoid event handler issues
+        state.createIcing(
           filteredPoints,
           0.05, // radius
           currentSurfaceType.current,
           currentSurfaceId.current
-        )
+        ).finally(() => {
+          isSendingStroke.current = false
+          // Clear stroke after send completes (success or fail)
+          useGameStore.getState().clearIcingStroke()
+        })
+      } else {
+        // Clear the stroke immediately if not enough points
+        state.clearIcingStroke()
       }
-
-      // Clear the stroke
-      state.clearIcingStroke()
     }
 
     const handleKeyDown = (event) => {
