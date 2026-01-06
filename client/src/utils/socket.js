@@ -1,6 +1,8 @@
 import { io } from 'socket.io-client'
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'
+// In production, connect to same origin. In development, use env var or localhost
+const SERVER_URL = import.meta.env.VITE_SERVER_URL ||
+  (import.meta.env.PROD ? window.location.origin : 'http://localhost:3001')
 
 // Socket instance (singleton)
 let socket = null

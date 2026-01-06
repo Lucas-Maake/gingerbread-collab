@@ -8,6 +8,8 @@
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "build:client": "cd client && npm run build",
+    "build": "npm install --prefix client && npm install --prefix server && npm run build --prefix client",
+    "start": "cd server && npm start",
     "start:server": "cd server && npm start"
   },
   "keywords": [
@@ -20,5 +22,8 @@
     "socketio"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
