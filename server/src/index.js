@@ -85,6 +85,18 @@ app.get('/api/room/:roomId', (req, res) => {
 // Serve static files in production
 if (isProduction) {
   const clientDistPath = path.join(__dirname, '../../client/dist')
+  console.log('Static files path:', clientDistPath)
+
+  // Check if dist folder exists
+  import('fs').then(fs => {
+    if (fs.existsSync(clientDistPath)) {
+      console.log('Client dist folder exists')
+      console.log('Contents:', fs.readdirSync(clientDistPath))
+    } else {
+      console.error('ERROR: Client dist folder does not exist at:', clientDistPath)
+    }
+  })
+
   app.use(express.static(clientDistPath))
 
   // Handle client-side routing - serve index.html for all non-API routes
