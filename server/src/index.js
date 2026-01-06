@@ -119,8 +119,9 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`🏠 Gingerbread Collab Server running on port ${PORT}`)
+  console.log(`Binding to: 0.0.0.0:${PORT}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log(`Allowed origins: ${allowedOrigins.join(', ')}`)
 })
