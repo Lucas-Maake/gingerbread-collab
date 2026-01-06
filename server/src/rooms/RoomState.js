@@ -55,6 +55,7 @@ export class PieceState {
     this.yaw = Math.random() * Math.PI * 2 // Random initial rotation
     this.heldBy = null
     this.spawnedBy = spawnedBy
+    this.attachedTo = null // wallId this piece is snapped to (for windows/doors)
     this.version = 1
     this.updatedAt = Date.now()
     this.lastValidPos = [...position]
@@ -92,6 +93,11 @@ export class PieceState {
     this.version++
   }
 
+  setAttachedTo(wallId) {
+    this.attachedTo = wallId
+    this.version++
+  }
+
   toJSON() {
     return {
       pieceId: this.pieceId,
@@ -100,6 +106,7 @@ export class PieceState {
       yaw: this.yaw,
       heldBy: this.heldBy,
       spawnedBy: this.spawnedBy,
+      attachedTo: this.attachedTo,
       version: this.version
     }
   }
@@ -341,7 +348,7 @@ export class RoomState {
     return { piece }
   }
 
-  releasePiece(pieceId, userId, finalPos, finalYaw) {
+  releasePiece(pieceId, userId, finalPos, finalYaw, attachedTo = null) {
     const piece = this.pieces.get(pieceId)
     if (!piece) {
       return { error: 'PIECE_NOT_FOUND' }
@@ -360,6 +367,7 @@ export class RoomState {
       // Out of bounds - revert
       piece.revertToLastValid()
       piece.release()
+      piece.setAttachedTo(null)
       return { piece, adjusted: true, reason: 'OUT_OF_BOUNDS' }
     }
 
@@ -369,6 +377,7 @@ export class RoomState {
     if (result.valid) {
       piece.updateTransform(result.pos, finalYaw)
       piece.release()
+      piece.setAttachedTo(attachedTo) // Track which wall this piece is attached to
       this.setOccupancy(piece)
       this.lastActivityAt = Date.now()
       return { piece, adjusted: result.adjusted }
@@ -376,6 +385,7 @@ export class RoomState {
       // No valid position found - revert
       piece.revertToLastValid()
       piece.release()
+      piece.setAttachedTo(null)
       this.setOccupancy(piece)
       return { piece, adjusted: true, reason: 'NO_VALID_POSITION' }
     }
@@ -479,9 +489,28 @@ export class RoomState {
       return { error: 'NOT_OWNER' }
     }
 
+    // Find and delete all pieces attached to this wall
+    const deletedPieces = []
+    for (const [pieceId, piece] of this.pieces.entries()) {
+      if (piece.attachedTo === wallId) {
+        this.clearOccupancy(piece)
+        this.pieces.delete(pieceId)
+        deletedPieces.push(pieceId)
+      }
+    }
+
+    // Find and delete all icing attached to this wall
+    const deletedIcing = []
+    for (const [icingId, icing] of this.icing.entries()) {
+      if (icing.surfaceId === wallId) {
+        this.icing.delete(icingId)
+        deletedIcing.push(icingId)
+      }
+    }
+
     this.walls.delete(wallId)
     this.lastActivityAt = Date.now()
-    return { success: true, wall }
+    return { success: true, wall, deletedPieces, deletedIcing }
   }
 
   getWall(wallId) {

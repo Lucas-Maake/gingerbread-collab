@@ -219,15 +219,15 @@ export const useGameStore = create((set, get) => ({
     }
   },
 
-  releasePiece: async (pos, yaw) => {
+  releasePiece: async (pos, yaw, attachedTo = null) => {
     const state = get()
     if (!state.heldPieceId) return
 
     try {
-      const response = await socket.releasePiece(state.heldPieceId, pos, yaw)
+      const response = await socket.releasePiece(state.heldPieceId, pos, yaw, attachedTo)
       set({ heldPieceId: null })
       // Play snap sound if piece was snapped, otherwise release sound
-      if (response.adjusted) {
+      if (response.adjusted || attachedTo) {
         playGlobalSound(SoundType.SNAP)
       } else {
         playGlobalSound(SoundType.RELEASE)

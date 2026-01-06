@@ -184,7 +184,7 @@ export function registerSocketHandlers(io, socket) {
 
   /**
    * Release a piece
-   * @param {Object} data - { pieceId: string, pos: [x, y, z], yaw: number }
+   * @param {Object} data - { pieceId: string, pos: [x, y, z], yaw: number, attachedTo?: string }
    */
   socket.on('release_piece', (data, callback) => {
     const room = roomManager.getRoomForSocket(socketId)
@@ -197,14 +197,14 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { pieceId, pos, yaw } = data
+    const { pieceId, pos, yaw, attachedTo } = data
     const piece = room.pieces.get(pieceId)
 
     // Store previous position for undo
     const prevPos = piece ? [...piece.pos] : null
     const prevYaw = piece ? piece.yaw : null
 
-    const result = room.releasePiece(pieceId, user.userId, pos, yaw)
+    const result = room.releasePiece(pieceId, user.userId, pos, yaw, attachedTo)
 
     if (result.error) {
       return callback({ error: result.error })
@@ -535,10 +535,34 @@ export function registerSocketHandlers(io, socket) {
       })
     }
 
-    // Broadcast to all in room
+    // Broadcast cascade-deleted pieces
+    if (result.deletedPieces && result.deletedPieces.length > 0) {
+      for (const pieceId of result.deletedPieces) {
+        io.to(room.roomId).emit('piece_deleted', {
+          pieceId,
+          deletedBy: user.userId,
+          reason: 'WALL_DELETED'
+        })
+      }
+    }
+
+    // Broadcast cascade-deleted icing
+    if (result.deletedIcing && result.deletedIcing.length > 0) {
+      for (const icingId of result.deletedIcing) {
+        io.to(room.roomId).emit('icing_stroke_deleted', {
+          icingId,
+          deletedBy: user.userId,
+          reason: 'WALL_DELETED'
+        })
+      }
+    }
+
+    // Broadcast wall deletion
     io.to(room.roomId).emit('wall_segment_deleted', {
       wallId,
-      deletedBy: user.userId
+      deletedBy: user.userId,
+      deletedPieces: result.deletedPieces || [],
+      deletedIcing: result.deletedIcing || []
     })
 
     callback({ success: true })

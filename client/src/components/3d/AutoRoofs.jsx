@@ -185,7 +185,8 @@ function RoofPolygon({ vertices, roofStyle, pitchAngle }) {
       const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings)
 
       // Rotate to horizontal and position at wall top
-      geo.rotateX(-Math.PI / 2)
+      // Use +π/2 so that shape Y (which holds worldZ) maps to +Z in world space
+      geo.rotateX(Math.PI / 2)
       geo.translate(0, WALL_HEIGHT, 0)
 
       return geo

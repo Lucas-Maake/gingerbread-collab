@@ -1,24 +1,31 @@
+/* SFX Mute Button - Frosted Winter UI */
+
 .sfx-mute-button {
-  position: absolute;
-  top: 75px;
-  right: var(--spacing-md);
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.8), rgba(15, 23, 42, 0.9));
+  color: var(--ice-silver);
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  z-index: 100;
-  transition: background 0.2s, opacity 0.2s;
+  gap: 5px;
+  transition: all 0.25s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .sfx-mute-button:hover {
-  background: rgba(0, 0, 0, 0.8);
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.2), rgba(30, 58, 95, 0.9));
+  color: var(--snow-white);
+  border-color: rgba(56, 189, 248, 0.3);
 }
 
 .sfx-mute-button.muted {
-  opacity: 0.6;
+  opacity: 0.5;
+}
+
+.sfx-mute-button.muted:hover {
+  opacity: 0.8;
 }
 
 .sfx-mute-button svg {
@@ -26,6 +33,7 @@
 }
 
 .sfx-label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }

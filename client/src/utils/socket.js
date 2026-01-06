@@ -243,15 +243,19 @@ export function grabPiece(pieceId) {
 
 /**
  * Release a piece
+ * @param {string} pieceId - The piece ID
+ * @param {Array} pos - Position [x, y, z]
+ * @param {number} yaw - Rotation
+ * @param {string|null} attachedTo - Wall ID this piece is snapped to (for windows/doors)
  */
-export function releasePiece(pieceId, pos, yaw) {
+export function releasePiece(pieceId, pos, yaw, attachedTo = null) {
   return new Promise((resolve, reject) => {
     if (!socket?.connected) {
       reject(new Error('Not connected'))
       return
     }
 
-    socket.emit('release_piece', { pieceId, pos, yaw }, (response) => {
+    socket.emit('release_piece', { pieceId, pos, yaw, attachedTo }, (response) => {
       if (response.error) {
         reject(new Error(response.error))
       } else {

@@ -9,6 +9,9 @@ import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
 const BUILD_SURFACE_SIZE = 10
 const ROTATION_SPEED = Math.PI / 8 // 22.5 degrees per press
 const DRAG_PLANE_Y = 0.1 // Slightly above surface
+const WINDOW_HEIGHT_STEP = 0.1 // How much scroll wheel adjusts window height
+const WINDOW_MIN_HEIGHT = 0.3 // Minimum window center height
+const WINDOW_MAX_HEIGHT = 1.3 // Maximum window center height (below wall top)
 
 /**
  * InteractionManager - Handles all piece interactions
@@ -29,6 +32,8 @@ export default function InteractionManager() {
   const currentRotation = useRef(0)
   const lastCursorUpdate = useRef(0)
   const isSnapped = useRef(false) // Track if piece is currently snapped
+  const snappedToWallId = useRef(null) // Track which wall the piece is snapped to
+  const targetWindowHeight = useRef(0.75) // Target Y height for windows (adjustable with scroll)
 
   // Set up event listeners - use getState() to avoid stale closures
   useEffect(() => {
@@ -111,24 +116,32 @@ export default function InteractionManager() {
         let finalYaw = currentRotation.current
 
         // Apply snapping for release position
+        let attachedTo = null
         if (heldPiece && isSnappable(heldPiece.type)) {
+          // For windows, use the adjustable target height
+          const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
+          const yForSnap = isWindow ? targetWindowHeight.current : clampedPos.y
+
           const snapResult = calculateSnapPosition(
             heldPiece.type,
-            finalPos,
+            [clampedPos.x, yForSnap, clampedPos.z],
             finalYaw,
             state.pieces,
-            heldPieceId
+            heldPieceId,
+            state.walls
           )
           if (snapResult.snapped) {
             finalPos = snapResult.position
             finalYaw = snapResult.yaw
+            attachedTo = snapResult.targetId // Track which wall it's attached to
           }
         }
 
-        console.log('Releasing piece at:', finalPos)
-        await releasePiece(finalPos, finalYaw)
+        console.log('Releasing piece at:', finalPos, 'attached to:', attachedTo)
+        await releasePiece(finalPos, finalYaw, attachedTo)
         isDragging.current = false
         isSnapped.current = false
+        snappedToWallId.current = null
       }
     }
 
@@ -161,12 +174,17 @@ export default function InteractionManager() {
 
         // Check for snapping if this piece type can snap
         if (isSnappable(heldPiece.type)) {
+          // For windows, use the adjustable target height
+          const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
+          const yForSnap = isWindow ? targetWindowHeight.current : clampedPos.y
+
           const snapResult = calculateSnapPosition(
             heldPiece.type,
-            [clampedPos.x, clampedPos.y, clampedPos.z],
+            [clampedPos.x, yForSnap, clampedPos.z],
             currentRotation.current,
             state.pieces,
-            state.heldPieceId
+            state.heldPieceId,
+            state.walls
           )
 
           if (snapResult.snapped) {
@@ -174,11 +192,14 @@ export default function InteractionManager() {
             finalYaw = snapResult.yaw
             currentRotation.current = finalYaw // Update rotation to match snap
             isSnapped.current = true
+            snappedToWallId.current = snapResult.targetId
           } else {
             isSnapped.current = false
+            snappedToWallId.current = null
           }
         } else {
           isSnapped.current = false
+          snappedToWallId.current = null
         }
 
         state.updatePieceTransform(state.heldPieceId, finalPos, finalYaw)
@@ -237,6 +258,40 @@ export default function InteractionManager() {
       // Piece rotation only works in select mode with held piece
       if (state.buildMode !== 'select' || !state.heldPieceId) return
 
+      const heldPiece = state.pieces.get(state.heldPieceId)
+      if (!heldPiece) return
+
+      const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
+
+      // Handle window height adjustment with arrow keys when snapped
+      if (isSnapped.current && isWindow && (key === 'arrowup' || key === 'arrowdown')) {
+        const heightDelta = key === 'arrowup' ? WINDOW_HEIGHT_STEP : -WINDOW_HEIGHT_STEP
+        targetWindowHeight.current = Math.max(
+          WINDOW_MIN_HEIGHT,
+          Math.min(WINDOW_MAX_HEIGHT, targetWindowHeight.current + heightDelta)
+        )
+
+        // Trigger a re-snap with new height
+        const clampedPos = heldPiece.pos
+        const snapResult = calculateSnapPosition(
+          heldPiece.type,
+          [clampedPos[0], targetWindowHeight.current, clampedPos[2]],
+          currentRotation.current,
+          state.pieces,
+          state.heldPieceId,
+          state.walls
+        )
+
+        if (snapResult.snapped) {
+          state.updatePieceTransform(
+            state.heldPieceId,
+            snapResult.position,
+            snapResult.yaw
+          )
+        }
+        return
+      }
+
       let rotationDelta = 0
 
       switch (key) {
@@ -248,11 +303,11 @@ export default function InteractionManager() {
           break
         case 'escape':
           // Cancel - release piece at current position
-          const piece = state.pieces.get(state.heldPieceId)
-          if (piece) {
-            state.releasePiece(piece.pos, currentRotation.current)
+          if (heldPiece) {
+            state.releasePiece(heldPiece.pos, currentRotation.current, snappedToWallId.current)
             isDragging.current = false
             isSnapped.current = false
+            snappedToWallId.current = null
           }
           return
         default:
@@ -268,24 +323,57 @@ export default function InteractionManager() {
       currentRotation.current += rotationDelta
 
       // Update piece transform
-      const piece = state.pieces.get(state.heldPieceId)
-      if (piece) {
+      if (heldPiece) {
         state.updatePieceTransform(
           state.heldPieceId,
-          piece.pos,
+          heldPiece.pos,
           currentRotation.current
         )
         playGlobalSound(SoundType.ROTATE)
       }
     }
 
-    // Handle mouse wheel while holding - also rotate (only in select mode)
+    // Handle mouse wheel while holding - rotate or adjust window height (only in select mode)
     const handleWheel = (event) => {
       const state = useGameStore.getState()
       if (state.buildMode !== 'select' || !state.heldPieceId) return
 
       // Only handle if on canvas
       if (event.target !== canvas) return
+
+      const heldPiece = state.pieces.get(state.heldPieceId)
+      if (!heldPiece) return
+
+      const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
+
+      // When snapped and holding a window, scroll adjusts height instead of rotation
+      if (isSnapped.current && isWindow) {
+        const heightDelta = event.deltaY > 0 ? -WINDOW_HEIGHT_STEP : WINDOW_HEIGHT_STEP
+        targetWindowHeight.current = Math.max(
+          WINDOW_MIN_HEIGHT,
+          Math.min(WINDOW_MAX_HEIGHT, targetWindowHeight.current + heightDelta)
+        )
+
+        // Trigger a re-snap with new height by calling the snapping logic
+        const clampedPos = heldPiece.pos
+        const snapResult = calculateSnapPosition(
+          heldPiece.type,
+          [clampedPos[0], targetWindowHeight.current, clampedPos[2]],
+          currentRotation.current,
+          state.pieces,
+          state.heldPieceId,
+          state.walls
+        )
+
+        if (snapResult.snapped) {
+          state.updatePieceTransform(
+            state.heldPieceId,
+            snapResult.position,
+            snapResult.yaw
+          )
+        }
+        return
+      }
 
       // Don't allow rotation when piece is snapped to a wall
       if (isSnapped.current) {
@@ -295,11 +383,10 @@ export default function InteractionManager() {
       const rotationDelta = event.deltaY > 0 ? -ROTATION_SPEED : ROTATION_SPEED
       currentRotation.current += rotationDelta
 
-      const piece = state.pieces.get(state.heldPieceId)
-      if (piece) {
+      if (heldPiece) {
         state.updatePieceTransform(
           state.heldPieceId,
-          piece.pos,
+          heldPiece.pos,
           currentRotation.current
         )
         playGlobalSound(SoundType.ROTATE)

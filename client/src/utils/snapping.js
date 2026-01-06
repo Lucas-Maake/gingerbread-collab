@@ -1,16 +1,16 @@
 /**
  * Piece snapping utilities
- * Allows windows and doors to snap to wall surfaces
+ * Allows windows and doors to snap to wall surfaces (both pre-built pieces and drawn walls)
  */
 
 // Pieces that can snap to walls
 const SNAPPABLE_PIECES = ['DOOR', 'WINDOW_SMALL', 'WINDOW_LARGE']
 
-// Pieces that can be snapped TO
-const SNAP_TARGETS = ['WALL_FRONT', 'WALL_BACK', 'WALL_LEFT', 'WALL_RIGHT']
+// Pre-built pieces that can be snapped TO
+const SNAP_TARGET_PIECES = ['WALL_FRONT', 'WALL_BACK', 'WALL_LEFT', 'WALL_RIGHT']
 
 // Snap distance threshold (how close before snapping)
-const SNAP_DISTANCE = 0.5
+const SNAP_DISTANCE = 0.6
 
 // Piece dimensions (must match PIECE_CONFIGS in Pieces.jsx)
 const PIECE_SIZES = {
@@ -34,19 +34,20 @@ export function isSnappable(pieceType) {
  * Check if a piece type can be snapped to
  */
 export function isSnapTarget(pieceType) {
-  return SNAP_TARGETS.includes(pieceType)
+  return SNAP_TARGET_PIECES.includes(pieceType)
 }
 
 /**
- * Calculate snap position for a piece relative to walls
+ * Calculate snap position for a piece relative to walls (both pre-built and drawn)
  * @param {string} pieceType - Type of piece being dragged
  * @param {Array} piecePos - Current [x, y, z] position of piece
  * @param {number} pieceYaw - Current rotation of piece
  * @param {Map} allPieces - Map of all pieces in the room
+ * @param {Map} allWalls - Map of all drawn wall segments
  * @param {string} excludePieceId - ID of piece being dragged (to exclude from targets)
  * @returns {Object} { snapped: boolean, position: [x, y, z], yaw: number, targetId: string|null }
  */
-export function calculateSnapPosition(pieceType, piecePos, pieceYaw, allPieces, excludePieceId) {
+export function calculateSnapPosition(pieceType, piecePos, pieceYaw, allPieces, excludePieceId, allWalls = new Map()) {
   if (!isSnappable(pieceType)) {
     return { snapped: false, position: piecePos, yaw: pieceYaw, targetId: null }
   }
@@ -59,7 +60,7 @@ export function calculateSnapPosition(pieceType, piecePos, pieceYaw, allPieces, 
   let closestSnap = null
   let closestDistance = SNAP_DISTANCE
 
-  // Check each potential snap target (wall)
+  // Check each pre-built wall piece
   for (const [id, piece] of allPieces.entries()) {
     if (id === excludePieceId) continue
     if (!isSnapTarget(piece.type)) continue
@@ -82,7 +83,7 @@ export function calculateSnapPosition(pieceType, piecePos, pieceYaw, allPieces, 
     }
 
     // Determine wall orientation and calculate snap position
-    const snapResult = calculateWallSnap(
+    const snapResult = calculateWallPieceSnap(
       pieceType,
       piecePos,
       piece.type,
@@ -103,6 +104,26 @@ export function calculateSnapPosition(pieceType, piecePos, pieceYaw, allPieces, 
     }
   }
 
+  // Check each drawn wall segment
+  for (const [wallId, wall] of allWalls.entries()) {
+    const snapResult = calculateDrawnWallSnap(
+      pieceType,
+      piecePos,
+      wall,
+      pieceSize
+    )
+
+    if (snapResult && snapResult.distance < closestDistance) {
+      closestDistance = snapResult.distance
+      closestSnap = {
+        snapped: true,
+        position: snapResult.position,
+        yaw: snapResult.yaw,
+        targetId: wallId
+      }
+    }
+  }
+
   if (closestSnap) {
     return closestSnap
   }
@@ -111,10 +132,9 @@ export function calculateSnapPosition(pieceType, piecePos, pieceYaw, allPieces, 
 }
 
 /**
- * Calculate snap position for a piece on a specific wall
- * The piece rotation is ALWAYS set to face perpendicular to the wall surface
+ * Calculate snap position for a piece on a pre-built wall piece
  */
-function calculateWallSnap(pieceType, piecePos, wallType, wallPos, wallYaw, wallSize, pieceSize) {
+function calculateWallPieceSnap(pieceType, piecePos, wallType, wallPos, wallYaw, wallSize, pieceSize) {
   // Wall thickness
   const wallThickness = wallSize.axis === 'z' ? wallSize.depth : wallSize.width
 
@@ -159,8 +179,6 @@ function calculateWallSnap(pieceType, piecePos, wallType, wallPos, wallYaw, wall
       }
 
       // Rotation: piece faces outward from the wall (perpendicular)
-      // side > 0 means piece is on +Z side, should face +Z (yaw = 0)
-      // side < 0 means piece is on -Z side, should face -Z (yaw = PI)
       const snapYaw = side > 0 ? 0 : Math.PI
 
       return {
@@ -205,8 +223,6 @@ function calculateWallSnap(pieceType, piecePos, wallType, wallPos, wallYaw, wall
       }
 
       // Rotation: piece faces outward from the wall (perpendicular)
-      // side > 0 means piece is on +X side, should face +X (yaw = PI/2)
-      // side < 0 means piece is on -X side, should face -X (yaw = -PI/2)
       const snapYaw = side > 0 ? Math.PI / 2 : -Math.PI / 2
 
       return {
@@ -218,4 +234,97 @@ function calculateWallSnap(pieceType, piecePos, wallType, wallPos, wallYaw, wall
   }
 
   return null
+}
+
+/**
+ * Calculate snap position for a piece on a drawn wall segment
+ * Drawn walls have start/end points and can be at any angle
+ */
+function calculateDrawnWallSnap(pieceType, piecePos, wall, pieceSize) {
+  const [startX, startZ] = wall.start
+  const [endX, endZ] = wall.end
+  const wallHeight = wall.height || 1.5
+  const wallThickness = wall.thickness || 0.15
+
+  // Calculate wall vector and length
+  const wallDx = endX - startX
+  const wallDz = endZ - startZ
+  const wallLength = Math.sqrt(wallDx * wallDx + wallDz * wallDz)
+
+  // Skip very short walls
+  if (wallLength < 0.2) return null
+
+  // Normalize wall direction
+  const wallDirX = wallDx / wallLength
+  const wallDirZ = wallDz / wallLength
+
+  // Wall center
+  const wallCenterX = (startX + endX) / 2
+  const wallCenterZ = (startZ + endZ) / 2
+
+  // Vector from wall center to piece
+  const toPieceX = piecePos[0] - wallCenterX
+  const toPieceZ = piecePos[2] - wallCenterZ
+
+  // Project piece position onto wall line (parametric t)
+  // t = 0 at start, t = 1 at end
+  const toStartX = piecePos[0] - startX
+  const toStartZ = piecePos[2] - startZ
+  let t = (toStartX * wallDirX + toStartZ * wallDirZ) / wallLength
+
+  // Clamp t to wall bounds with margin for piece width
+  const pieceHalfWidth = pieceSize.width / 2
+  const marginT = pieceHalfWidth / wallLength
+  t = Math.max(marginT, Math.min(1 - marginT, t))
+
+  // Closest point on wall line
+  const closestX = startX + t * wallDx
+  const closestZ = startZ + t * wallDz
+
+  // Perpendicular distance from piece to wall line
+  // Cross product gives signed distance
+  const perpDist = (piecePos[0] - closestX) * (-wallDirZ) + (piecePos[2] - closestZ) * wallDirX
+
+  // Absolute distance to wall center line
+  const distToLine = Math.abs(perpDist)
+
+  // Check if close enough
+  if (distToLine > SNAP_DISTANCE + wallThickness / 2) {
+    return null
+  }
+
+  // Determine which side to snap to
+  const side = perpDist >= 0 ? 1 : -1
+
+  // Offset from wall surface
+  const surfaceOffset = (wallThickness / 2) + (pieceSize.depth / 2) + 0.005
+
+  // Normal vector (perpendicular to wall)
+  const normalX = -wallDirZ * side
+  const normalZ = wallDirX * side
+
+  // Snap position on wall surface
+  const snapX = closestX + normalX * surfaceOffset
+  const snapZ = closestZ + normalZ * surfaceOffset
+
+  // Determine Y position
+  let snapY
+  if (pieceType === 'DOOR') {
+    snapY = pieceSize.height / 2 // Door sits on ground
+  } else {
+    // Windows - keep current Y but clamp to wall bounds
+    const minY = pieceSize.height / 2 + 0.05
+    const maxY = wallHeight - pieceSize.height / 2 - 0.05
+    snapY = Math.max(minY, Math.min(maxY, piecePos[1] || wallHeight / 2))
+  }
+
+  // Calculate yaw to face outward (perpendicular to wall)
+  // atan2 gives angle of normal vector
+  const snapYaw = Math.atan2(normalX, normalZ)
+
+  return {
+    position: [snapX, snapY, snapZ],
+    yaw: snapYaw,
+    distance: distToLine
+  }
 }

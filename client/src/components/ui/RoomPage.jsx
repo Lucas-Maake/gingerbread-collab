@@ -145,7 +145,7 @@ export default function RoomPage() {
       </div>
 
       {/* Undo Button */}
-      <button className="undo-button" onClick={undo}>
+      <button className="undo-button" onClick={handleUndo}>
         Undo
       </button>
 
@@ -163,11 +163,11 @@ export default function RoomPage() {
         </div>
       )}
 
-      {/* Music Mute Button */}
-      <MuteButton />
-
-      {/* SFX Mute Button */}
-      <SfxMuteButton />
+      {/* Audio Controls Container */}
+      <div className="audio-controls">
+        <MuteButton />
+        <SfxMuteButton />
+      </div>
 
       {/* Screenshot Button */}
       <ScreenshotButton />

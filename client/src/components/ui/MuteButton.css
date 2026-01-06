@@ -1,26 +1,34 @@
+/* Music Controls - Frosted Winter UI */
+
+.music-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
 .mute-button {
-  position: fixed;
-  top: var(--spacing-md);
-  right: var(--spacing-md);
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: var(--frosting-white);
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.85), rgba(15, 23, 42, 0.9));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  color: var(--snow-white);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 200;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .mute-button:hover {
-  background: rgba(0, 0, 0, 0.8);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: scale(1.05);
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.25), rgba(30, 58, 95, 0.9));
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 0 15px rgba(56, 189, 248, 0.2);
 }
 
 .mute-button:active {
@@ -28,15 +36,51 @@
 }
 
 .mute-button.muted {
-  color: rgba(255, 255, 255, 0.5);
-  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(145deg, rgba(51, 65, 85, 0.8), rgba(30, 41, 59, 0.9));
 }
 
 .mute-button.muted:hover {
-  color: var(--frosting-white);
+  color: var(--snow-white);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .mute-button svg {
   width: 20px;
   height: 20px;
+}
+
+/* Skip buttons (prev/next) */
+.skip-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.75), rgba(15, 23, 42, 0.85));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--ice-silver);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.skip-button:hover {
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.2), rgba(30, 58, 95, 0.85));
+  border-color: rgba(56, 189, 248, 0.3);
+  color: var(--snow-white);
+  transform: scale(1.1);
+}
+
+.skip-button:active {
+  transform: scale(0.9);
+}
+
+.skip-button svg {
+  width: 16px;
+  height: 16px;
 }

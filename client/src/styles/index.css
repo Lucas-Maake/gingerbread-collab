@@ -1,8 +1,31 @@
 /* Gingerbread Collab Builder - Main Styles */
-/* LoFi Christmas Cozy Theme */
+/* Frosted Winter Wonderland Theme */
+
+@import url('https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&family=Nunito:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Color Palette: Warm browns, creams, reds, and greens */
+  /* Winter Color Palette */
+  --midnight-blue: #0f172a;
+  --twilight-blue: #1e3a5f;
+  --frost-blue: #38bdf8;
+  --ice-silver: #e2e8f0;
+  --snow-white: #f8fafc;
+  --crystal-white: #ffffff;
+
+  /* Christmas Accents */
+  --holly-red: #dc2626;
+  --holly-red-glow: #ef4444;
+  --pine-green: #15803d;
+  --pine-green-glow: #22c55e;
+  --gold-star: #fbbf24;
+  --warm-cream: #fef3c7;
+
+  /* Aurora Gradients */
+  --aurora-start: #0ea5e9;
+  --aurora-mid: #8b5cf6;
+  --aurora-end: #ec4899;
+
+  /* Gingerbread (preserved for 3D elements) */
   --gingerbread-brown: #8B4513;
   --cream: #FFF8DC;
   --frosting-white: #FFFAFA;
@@ -11,21 +34,23 @@
   --dark-chocolate: #3E2723;
 
   /* User presence colors */
-  --user-red: #FF5252;
-  --user-blue: #448AFF;
-  --user-green: #69F0AE;
-  --user-yellow: #FFD740;
-  --user-purple: #E040FB;
-  --user-orange: #FF6E40;
+  --user-red: #f87171;
+  --user-blue: #60a5fa;
+  --user-green: #4ade80;
+  --user-yellow: #facc15;
+  --user-purple: #c084fc;
+  --user-orange: #fb923c;
 
-  /* Background gradient - warm sunset pink */
-  --bg-sunset-top: #FFA270;
-  --bg-soft-pink: #FFE4EC;
+  /* Frosted Glass */
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.05);
 
   /* UI Colors */
-  --text-primary: #2c2c2c;
-  --text-light: #f5f5f5;
-  --border-color: #d4a574;
+  --text-primary: #1e293b;
+  --text-light: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-color: rgba(255, 255, 255, 0.2);
 
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -33,6 +58,10 @@
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
+
+  /* Shadows */
+  --shadow-glow: 0 0 20px rgba(56, 189, 248, 0.3);
+  --shadow-frost: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 * {
@@ -42,16 +71,41 @@
 }
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(180deg, var(--bg-sunset-top) 0%, var(--bg-soft-pink) 100%);
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(145deg,
+    #0a1628 0%,
+    #0f2744 25%,
+    var(--twilight-blue) 50%,
+    #1a3a5c 75%,
+    #0d1f35 100%
+  );
+  background-attachment: fixed;
   color: var(--text-light);
   min-height: 100vh;
   overflow: hidden;
 }
 
+/* Subtle glow effect on body */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 20%, rgba(56, 189, 248, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 80% 30%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 50% 80%, rgba(96, 165, 250, 0.08) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 #root {
   width: 100vw;
   height: 100vh;
+  position: relative;
+  z-index: 1;
 }
 
 .app {
@@ -60,12 +114,19 @@ body {
   position: relative;
 }
 
+/* Typography - Christmas/Icing Style */
+h1, h2, h3 {
+  font-family: 'Mountains of Christmas', cursive;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 /* Button Styles */
 button {
-  font-family: inherit;
+  font-family: 'Nunito', sans-serif;
   cursor: pointer;
   border: none;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 button:disabled {
@@ -75,17 +136,23 @@ button:disabled {
 
 /* Input Styles */
 input {
-  font-family: inherit;
-  border: 2px solid var(--border-color);
-  border-radius: 8px;
+  font-family: 'Nunito', sans-serif;
+  border: 2px solid var(--glass-border);
+  border-radius: 12px;
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--frosting-white);
+  background: rgba(255, 255, 255, 0.95);
   color: var(--text-primary);
+  transition: all 0.25s ease;
 }
 
 input:focus {
   outline: none;
-  border-color: var(--candy-red);
+  border-color: var(--frost-blue);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+input::placeholder {
+  color: var(--text-muted);
 }
 
 /* Utility Classes */
@@ -118,14 +185,16 @@ input:focus {
 /* Tooltips */
 .tooltip {
   position: absolute;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-light);
   padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 0.875rem;
   pointer-events: none;
   white-space: nowrap;
   z-index: 1000;
+  border: 1px solid var(--glass-border);
 }
 
 /* Modal Overlay */
@@ -135,7 +204,8 @@ input:focus {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -143,11 +213,32 @@ input:focus {
 }
 
 .modal {
-  background: var(--cream);
-  color: var(--text-primary);
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.95), rgba(15, 23, 42, 0.98));
+  color: var(--text-light);
   padding: var(--spacing-xl);
-  border-radius: 16px;
+  border-radius: 24px;
   max-width: 500px;
   width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-frost), var(--shadow-glow);
+  border: 1px solid var(--glass-border);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }

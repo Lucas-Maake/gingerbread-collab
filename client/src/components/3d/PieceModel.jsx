@@ -112,7 +112,7 @@ function GLTFModel({
 }
 
 // Custom geometry types that need special rendering
-const CUSTOM_GEOMETRIES = ['tree', 'gingerbreadMan', 'star', 'heart', 'snowflake', 'present', 'chimney', 'fencePost', 'licorice', 'frostingDollop', 'candyButton']
+const CUSTOM_GEOMETRIES = ['tree', 'gingerbreadMan', 'star', 'heart', 'snowflake', 'present', 'chimney', 'fencePost', 'licorice', 'frostingDollop', 'candyButton', 'door', 'windowSmall', 'windowLarge']
 
 /**
  * Fallback primitive geometry when model isn't available
@@ -152,6 +152,12 @@ function FallbackGeometry({
       return <FrostingDollopGeometry {...props} />
     case 'candyButton':
       return <CandyButtonGeometry {...props} />
+    case 'door':
+      return <DoorGeometry {...props} />
+    case 'windowSmall':
+      return <WindowSmallGeometry {...props} />
+    case 'windowLarge':
+      return <WindowLargeGeometry {...props} />
     default:
       return (
         <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
@@ -354,24 +360,49 @@ function StarGeometry({ config, color, opacity, emissive, emissiveIntensity, cas
 function HeartGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const heartColor = color || config.color
 
-  // Create heart shape
+  // Create heart shape - classic heart with two rounded lobes at top and point at bottom
   const heartShape = useMemo(() => {
     const shape = new THREE.Shape()
-    const x = 0, y = 0
-    shape.moveTo(x, y - 0.1)
-    shape.bezierCurveTo(x, y - 0.06, x - 0.04, y, x - 0.1, y)
-    shape.bezierCurveTo(x - 0.16, y, x - 0.16, y + 0.08, x - 0.16, y + 0.08)
-    shape.bezierCurveTo(x - 0.16, y + 0.13, x - 0.1, y + 0.18, x, y + 0.22)
-    shape.bezierCurveTo(x + 0.1, y + 0.18, x + 0.16, y + 0.13, x + 0.16, y + 0.08)
-    shape.bezierCurveTo(x + 0.16, y + 0.08, x + 0.16, y, x + 0.1, y)
-    shape.bezierCurveTo(x + 0.04, y, x, y - 0.06, x, y - 0.1)
+    const scale = 0.12
+
+    // Start at bottom point
+    shape.moveTo(0, -scale * 1.2)
+
+    // Left side curve up to left lobe
+    shape.bezierCurveTo(
+      -scale * 0.1, -scale * 0.8,  // control point 1
+      -scale * 1.2, -scale * 0.2,  // control point 2
+      -scale * 1.2, scale * 0.3    // end at top of left lobe
+    )
+
+    // Left lobe top curve
+    shape.bezierCurveTo(
+      -scale * 1.2, scale * 0.9,   // control point 1
+      -scale * 0.5, scale * 1.1,   // control point 2
+      0, scale * 0.6               // end at center dip
+    )
+
+    // Right lobe top curve
+    shape.bezierCurveTo(
+      scale * 0.5, scale * 1.1,    // control point 1
+      scale * 1.2, scale * 0.9,    // control point 2
+      scale * 1.2, scale * 0.3     // end at top of right lobe
+    )
+
+    // Right side curve down to bottom point
+    shape.bezierCurveTo(
+      scale * 1.2, -scale * 0.2,   // control point 1
+      scale * 0.1, -scale * 0.8,   // control point 2
+      0, -scale * 1.2              // end at bottom point
+    )
+
     return shape
   }, [])
 
   return (
-    <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -0.05]}>
+    <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
       <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
-        <extrudeGeometry args={[heartShape, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.008, bevelSegments: 2 }]} />
+        <extrudeGeometry args={[heartShape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 3 }]} />
         <meshStandardMaterial color={heartColor} roughness={0.5} metalness={0.1} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
       </mesh>
     </group>
@@ -590,6 +621,308 @@ function CandyButtonGeometry({ config, color, opacity, emissive, emissiveIntensi
         <sphereGeometry args={[0.015, 8, 8]} />
         <meshStandardMaterial color="#ffffff" roughness={0} metalness={0.5} transparent opacity={0.6} />
       </mesh>
+    </group>
+  )
+}
+
+/**
+ * Door - gingerbread cookie door with frosting decorations
+ */
+function DoorGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
+  const gingerbreadColor = '#CD853F'
+  const frostingColor = '#FFFAF0'
+  const candyRed = '#DC143C'
+  const candyGreen = '#228B22'
+
+  return (
+    <group>
+      {/* Main gingerbread door body */}
+      <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.5, 0.9, 0.08]} />
+        <meshStandardMaterial
+          color={gingerbreadColor}
+          roughness={0.8}
+          metalness={0}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
+      </mesh>
+
+      {/* Frosting outline - top */}
+      <mesh position={[0, 0.42, 0.045]} castShadow={castShadow}>
+        <boxGeometry args={[0.48, 0.04, 0.02]} />
+        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+      </mesh>
+
+      {/* Frosting outline - bottom */}
+      <mesh position={[0, -0.42, 0.045]} castShadow={castShadow}>
+        <boxGeometry args={[0.48, 0.04, 0.02]} />
+        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+      </mesh>
+
+      {/* Frosting outline - left */}
+      <mesh position={[-0.22, 0, 0.045]} castShadow={castShadow}>
+        <boxGeometry args={[0.04, 0.84, 0.02]} />
+        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+      </mesh>
+
+      {/* Frosting outline - right */}
+      <mesh position={[0.22, 0, 0.045]} castShadow={castShadow}>
+        <boxGeometry args={[0.04, 0.84, 0.02]} />
+        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+      </mesh>
+
+      {/* Frosting arch decoration at top */}
+      <mesh position={[0, 0.28, 0.045]} castShadow={castShadow}>
+        <boxGeometry args={[0.3, 0.025, 0.02]} />
+        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+      </mesh>
+
+      {/* Frosting swirl decorations - top corners */}
+      <mesh position={[-0.12, 0.32, 0.05]} castShadow={castShadow}>
+        <sphereGeometry args={[0.025, 8, 8]} />
+        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+      </mesh>
+      <mesh position={[0.12, 0.32, 0.05]} castShadow={castShadow}>
+        <sphereGeometry args={[0.025, 8, 8]} />
+        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+      </mesh>
+
+      {/* Heart decoration in center-top */}
+      <mesh position={[0, 0.2, 0.05]} rotation={[-Math.PI / 2, 0, 0]} castShadow={castShadow}>
+        <cylinderGeometry args={[0.04, 0.04, 0.02, 3]} />
+        <meshStandardMaterial color={candyRed} roughness={0.4} metalness={0.1} />
+      </mesh>
+
+      {/* Gumdrop door handle */}
+      <mesh position={[0.15, -0.05, 0.06]} castShadow={castShadow}>
+        <coneGeometry args={[0.04, 0.06, 8]} />
+        <meshStandardMaterial color={candyRed} roughness={0.3} metalness={0.1} />
+      </mesh>
+
+      {/* Candy button decorations - vertical line */}
+      {[-0.15, 0, 0.15].map((y, i) => (
+        <mesh key={`btn-${i}`} position={[-0.15, y, 0.05]} castShadow={castShadow}>
+          <sphereGeometry args={[0.025, 8, 8]} />
+          <meshStandardMaterial
+            color={i === 1 ? candyGreen : candyRed}
+            roughness={0.3}
+            metalness={0.1}
+          />
+        </mesh>
+      ))}
+
+      {/* Frosting squiggle down the middle (dots) */}
+      {[-0.25, -0.1, 0.05, 0.2].map((y, i) => (
+        <mesh key={`dot-${i}`} position={[0, y, 0.05]} castShadow={castShadow}>
+          <sphereGeometry args={[0.015, 6, 6]} />
+          <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} />
+        </mesh>
+      ))}
+
+      {/* Bottom candy decorations */}
+      <mesh position={[-0.1, -0.32, 0.05]} castShadow={castShadow}>
+        <sphereGeometry args={[0.03, 8, 8]} />
+        <meshStandardMaterial color={candyGreen} roughness={0.3} metalness={0.1} />
+      </mesh>
+      <mesh position={[0.1, -0.32, 0.05]} castShadow={castShadow}>
+        <sphereGeometry args={[0.03, 8, 8]} />
+        <meshStandardMaterial color={candyGreen} roughness={0.3} metalness={0.1} />
+      </mesh>
+    </group>
+  )
+}
+
+/**
+ * Small Window - frosted glass window with frame and panes
+ */
+function WindowSmallGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
+  const frameColor = '#FFFAF0' // White frosting frame (matches door)
+  const glassColor = '#A8D4E6' // Frosted pale blue glass
+  const frameThickness = 0.035
+  const frameDepth = 0.08
+
+  return (
+    <group>
+      {/* Frame - top */}
+      <mesh position={[0, 0.1575, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.35, frameThickness, frameDepth]} />
+        <meshStandardMaterial
+          color={frameColor}
+          roughness={0.7}
+          metalness={0}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
+      </mesh>
+
+      {/* Frame - bottom */}
+      <mesh position={[0, -0.1575, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.35, frameThickness, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+      </mesh>
+
+      {/* Frame - left */}
+      <mesh position={[-0.1575, 0, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[frameThickness, 0.28, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+      </mesh>
+
+      {/* Frame - right */}
+      <mesh position={[0.1575, 0, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[frameThickness, 0.28, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+      </mesh>
+
+      {/* Cross frame - vertical */}
+      <mesh position={[0, 0, 0]} castShadow={castShadow}>
+        <boxGeometry args={[0.025, 0.28, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} />
+      </mesh>
+
+      {/* Cross frame - horizontal */}
+      <mesh position={[0, 0, 0]} castShadow={castShadow}>
+        <boxGeometry args={[0.28, 0.025, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} />
+      </mesh>
+
+      {/* Glass pane - top left */}
+      <mesh position={[-0.07, 0.07, 0]} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.1, 0.1, 0.02]} />
+        <meshStandardMaterial
+          color={glassColor}
+          roughness={0.05}
+          metalness={0.2}
+          opacity={0.6}
+          transparent
+        />
+      </mesh>
+
+      {/* Glass pane - top right */}
+      <mesh position={[0.07, 0.07, 0]} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.1, 0.1, 0.02]} />
+        <meshStandardMaterial color={glassColor} roughness={0.05} metalness={0.2} opacity={0.6} transparent />
+      </mesh>
+
+      {/* Glass pane - bottom left */}
+      <mesh position={[-0.07, -0.07, 0]} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.1, 0.1, 0.02]} />
+        <meshStandardMaterial color={glassColor} roughness={0.05} metalness={0.2} opacity={0.6} transparent />
+      </mesh>
+
+      {/* Glass pane - bottom right */}
+      <mesh position={[0.07, -0.07, 0]} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.1, 0.1, 0.02]} />
+        <meshStandardMaterial color={glassColor} roughness={0.05} metalness={0.2} opacity={0.6} transparent />
+      </mesh>
+
+      {/* Decorative candy dots on corners */}
+      {[[-0.14, 0.14], [0.14, 0.14], [-0.14, -0.14], [0.14, -0.14]].map(([x, y], i) => (
+        <mesh key={i} position={[x, y, 0.05]} castShadow={castShadow}>
+          <sphereGeometry args={[0.02, 8, 8]} />
+          <meshStandardMaterial
+            color={i % 2 === 0 ? '#DC143C' : '#228B22'}
+            roughness={0.3}
+            metalness={0.1}
+          />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+/**
+ * Large Window - frosted glass window with frame and 6 panes
+ */
+function WindowLargeGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
+  const frameColor = '#FFFAF0' // White frosting frame (matches door)
+  const glassColor = '#A8D4E6' // Frosted pale blue glass
+  const frameThickness = 0.04
+  const frameDepth = 0.08
+
+  return (
+    <group>
+      {/* Frame - top */}
+      <mesh position={[0, 0.255, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.55, frameThickness, frameDepth]} />
+        <meshStandardMaterial
+          color={frameColor}
+          roughness={0.7}
+          metalness={0}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
+      </mesh>
+
+      {/* Frame - bottom */}
+      <mesh position={[0, -0.255, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[0.55, frameThickness, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+      </mesh>
+
+      {/* Frame - left */}
+      <mesh position={[-0.255, 0, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[frameThickness, 0.47, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+      </mesh>
+
+      {/* Frame - right */}
+      <mesh position={[0.255, 0, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+        <boxGeometry args={[frameThickness, 0.47, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+      </mesh>
+
+      {/* Vertical divider */}
+      <mesh position={[0, 0, 0]} castShadow={castShadow}>
+        <boxGeometry args={[0.025, 0.47, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} />
+      </mesh>
+
+      {/* Horizontal dividers */}
+      <mesh position={[0, 0.08, 0]} castShadow={castShadow}>
+        <boxGeometry args={[0.47, 0.025, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} />
+      </mesh>
+      <mesh position={[0, -0.08, 0]} castShadow={castShadow}>
+        <boxGeometry args={[0.47, 0.025, frameDepth]} />
+        <meshStandardMaterial color={frameColor} roughness={0.7} metalness={0} />
+      </mesh>
+
+      {/* 6 glass panes (2 columns x 3 rows) */}
+      {[
+        [-0.12, 0.165],  [0.12, 0.165],   // Top row
+        [-0.12, 0],      [0.12, 0],        // Middle row
+        [-0.12, -0.165], [0.12, -0.165]   // Bottom row
+      ].map(([x, y], i) => (
+        <mesh key={i} position={[x, y, 0]} receiveShadow={receiveShadow}>
+          <boxGeometry args={[0.19, 0.12, 0.02]} />
+          <meshStandardMaterial
+            color={glassColor}
+            roughness={0.05}
+            metalness={0.2}
+            opacity={0.6}
+            transparent
+          />
+        </mesh>
+      ))}
+
+      {/* Decorative candy dots on corners */}
+      {[[-0.23, 0.23], [0.23, 0.23], [-0.23, -0.23], [0.23, -0.23]].map(([x, y], i) => (
+        <mesh key={i} position={[x, y, 0.05]} castShadow={castShadow}>
+          <sphereGeometry args={[0.025, 8, 8]} />
+          <meshStandardMaterial
+            color={i % 2 === 0 ? '#DC143C' : '#228B22'}
+            roughness={0.3}
+            metalness={0.1}
+          />
+        </mesh>
+      ))}
     </group>
   )
 }

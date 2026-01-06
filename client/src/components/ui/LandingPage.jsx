@@ -37,7 +37,8 @@ function LandingPage() {
   return (
     <div className="landing-page">
       <div className="landing-content">
-        <h1 className="landing-title">🏠 Gingerbread Collab Builder</h1>
+        <span className="landing-icon">❄️</span>
+        <h1 className="landing-title">Gingerbread Collab</h1>
         <p className="landing-subtitle">
           Build cozy gingerbread houses with friends in real-time
         </p>

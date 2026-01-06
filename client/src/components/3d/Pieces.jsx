@@ -85,30 +85,27 @@ export const PIECE_CONFIGS = {
     allowColorOverride: false
   },
   DOOR: {
-    geometry: 'box',
+    geometry: 'door',
     size: [0.5, 0.9, 0.08],
-    boundingSize: [0.5, 0.9, 0.08],
+    boundingSize: [0.5, 0.9, 0.1],
     color: '#654321',
     yOffset: 0.45,
-    // model: '/models/gingerbread/door.glb',
     allowColorOverride: false
   },
   WINDOW_SMALL: {
-    geometry: 'box',
+    geometry: 'windowSmall',
     size: [0.35, 0.35, 0.08],
-    boundingSize: [0.35, 0.35, 0.08],
+    boundingSize: [0.35, 0.35, 0.1],
     color: '#87CEEB',
     yOffset: 0.175,
-    // model: '/models/gingerbread/window-small.glb',
     allowColorOverride: false
   },
   WINDOW_LARGE: {
-    geometry: 'box',
+    geometry: 'windowLarge',
     size: [0.55, 0.55, 0.08],
-    boundingSize: [0.55, 0.55, 0.08],
+    boundingSize: [0.55, 0.55, 0.1],
     color: '#87CEEB',
     yOffset: 0.275,
-    // model: '/models/gingerbread/window-large.glb',
     allowColorOverride: false
   },
   CANDY_CANE: {
@@ -151,7 +148,7 @@ export const PIECE_CONFIGS = {
     geometry: 'star',
     size: [0.3, 0.06, 0.3],
     boundingSize: [0.35, 0.06, 0.35],
-    color: '#DEB887',
+    color: '#FFD54F', // Bright golden yellow
     yOffset: 0.03,
     allowColorOverride: false
   },
@@ -288,7 +285,8 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }) {
     // If we're already holding this piece, release it
     if (heldPieceId === piece.pieceId) {
       console.log('Releasing piece:', piece.pieceId)
-      await releasePiece(piece.pos, piece.yaw)
+      // Pass the current attachedTo value (preserved from previous snap)
+      await releasePiece(piece.pos, piece.yaw, piece.attachedTo || null)
       return
     }
 
