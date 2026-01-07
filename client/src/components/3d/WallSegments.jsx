@@ -2,9 +2,9 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
 
-// Gingerbread wall colors (lighter, similar to table)
-const WALL_COLOR = '#B8956A'
-const WALL_EMISSIVE = '#4a3020'
+// Gingerbread wall colors (medium-dark brown)
+const WALL_COLOR = '#6E4823'
+const WALL_EMISSIVE = '#2a1810'
 
 /**
  * Create a procedural gingerbread texture using canvas
@@ -15,8 +15,8 @@ function createGingerbreadTexture(width = 256, height = 256) {
   canvas.height = height
   const ctx = canvas.getContext('2d')
 
-  // Base gingerbread color (lighter, similar to table)
-  const baseR = 184, baseG = 149, baseB = 106 // #B8956A
+  // Base gingerbread color (medium-dark brown)
+  const baseR = 110, baseG = 72, baseB = 35 // #6E4823
 
   // Fill with base color
   ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`

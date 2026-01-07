@@ -34,8 +34,8 @@ function createGingerbreadTexture(width = 256, height = 256) {
   canvas.height = height
   const ctx = canvas.getContext('2d')
 
-  // Base gingerbread color (lighter, similar to table but slightly darker)
-  const baseR = 176, baseG = 140, baseB = 98 // Slightly darker than walls
+  // Base gingerbread color (medium-dark brown for roofs)
+  const baseR = 100, baseG = 65, baseB = 30 // Medium-dark brown
 
   ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`
   ctx.fillRect(0, 0, width, height)

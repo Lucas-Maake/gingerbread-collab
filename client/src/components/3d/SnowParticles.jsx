@@ -5,6 +5,29 @@ import * as THREE from 'three'
 // Maximum snowflakes (we allocate this many, but may show fewer)
 const MAX_SNOWFLAKE_COUNT = 500
 
+/**
+ * Create a soft circular texture for snowflakes
+ */
+function createSnowflakeTexture() {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 32
+  const ctx = canvas.getContext('2d')
+
+  // Create radial gradient for soft circular shape
+  const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16)
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 1)')
+  gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.8)')
+  gradient.addColorStop(0.6, 'rgba(255, 255, 255, 0.3)')
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, 32, 32)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  return texture
+}
+
 // Snow bounds
 const BOUNDS = {
   x: 15,
@@ -26,6 +49,9 @@ function getInitialSnowCount() {
 export default function SnowParticles() {
   const pointsRef = useRef()
   const [activeCount, setActiveCount] = useState(getInitialSnowCount)
+
+  // Create snowflake texture (memoized)
+  const snowTexture = useMemo(() => createSnowflakeTexture(), [])
 
   // Listen for intensity changes
   useEffect(() => {
@@ -111,12 +137,14 @@ export default function SnowParticles() {
         />
       </bufferGeometry>
       <pointsMaterial
+        map={snowTexture}
         color="#ffffff"
-        size={0.08}
+        size={0.12}
         transparent
-        opacity={0.95}
+        opacity={0.9}
         sizeAttenuation
         depthWrite={false}
+        blending={THREE.AdditiveBlending}
       />
     </points>
   )

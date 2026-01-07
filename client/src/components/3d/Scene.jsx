@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrthographicCamera } from '@react-three/drei'
+import { OrthographicCamera, Environment } from '@react-three/drei'
 import BuildSurface from './BuildSurface'
 import Pieces from './Pieces'
 import Cursors from './Cursors'
@@ -16,6 +16,9 @@ import AutoRoofs from './AutoRoofs'
 import IcingStrokes from './IcingStrokes'
 import IcingDrawingManager from './IcingDrawingManager'
 import FrostedBackground from './FrostedBackground'
+import ChimneySmoke from './ChimneySmoke'
+import InteriorGlow from './InteriorGlow'
+import RoofFrosting from './RoofFrosting'
 
 /**
  * Main 3D Scene component
@@ -31,9 +34,9 @@ export default function Scene() {
         powerPreference: 'high-performance',
         preserveDrawingBuffer: true // Required for screenshots
       }}
-      style={{ background: '#E8EEF4' }}
+      style={{ background: '#1a1a2e' }}
       onCreated={({ gl }) => {
-        gl.setClearColor('#E8EEF4')
+        gl.setClearColor('#1a1a2e')
       }}
     >
       {/* Orthographic camera for isometric view */}
@@ -47,7 +50,7 @@ export default function Scene() {
 
       {/* Loading fallback */}
       <Suspense fallback={<LoadingIndicator />}>
-        {/* Frosted window background */}
+        {/* Frosted window background (handles day/night) */}
         <FrostedBackground />
 
         {/* Camera controls */}
@@ -58,6 +61,9 @@ export default function Scene() {
 
         {/* Lighting */}
         <Lighting />
+
+        {/* Environment map for candy reflections (low intensity to not wash out colors) */}
+        <Environment preset="apartment" background={false} environmentIntensity={0.3} />
 
         {/* Build surface (table/plate) */}
         <BuildSurface />
@@ -70,6 +76,9 @@ export default function Scene() {
 
         {/* Auto-generated roofs */}
         <AutoRoofs />
+
+        {/* Frosting drips on roof edges */}
+        <RoofFrosting />
 
         {/* Wall preview while drawing */}
         <WallPreview />
@@ -85,6 +94,12 @@ export default function Scene() {
 
         {/* Gingerbread pieces */}
         <Pieces />
+
+        {/* Chimney smoke effects */}
+        <ChimneySmoke />
+
+        {/* Interior glow from windows/doors */}
+        <InteriorGlow />
 
         {/* Other users' cursors */}
         <Cursors />

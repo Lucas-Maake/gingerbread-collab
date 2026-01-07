@@ -1,0 +1,40 @@
+.day-night-toggle {
+  position: fixed;
+  bottom: 275px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+}
+
+.day-night-toggle.day {
+  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+  color: #fff;
+}
+
+.day-night-toggle.day:hover {
+  background: linear-gradient(135deg, #FFE44D 0%, #FFB833 100%);
+  transform: scale(1.05);
+}
+
+.day-night-toggle.night {
+  background: linear-gradient(135deg, #2c3e50 0%, #1a1a3a 100%);
+  color: #F0E68C;
+}
+
+.day-night-toggle.night:hover {
+  background: linear-gradient(135deg, #3d5a73 0%, #2a2a5a 100%);
+  transform: scale(1.05);
+}
+
+.day-night-toggle svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}

@@ -1,0 +1,135 @@
+/* Camera Presets Component */
+
+.camera-presets {
+  position: fixed;
+  top: 140px;
+  right: 20px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.camera-presets-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.9), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+.camera-presets-toggle:hover {
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.2), rgba(30, 58, 95, 0.95));
+  border-color: rgba(56, 189, 248, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.camera-presets-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.toggle-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Presets Panel */
+.camera-presets-panel {
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.95), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 6px;
+  min-width: 52px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #e2e8f0;
+  transform: scale(1.02);
+}
+
+.preset-btn.active {
+  background: linear-gradient(135deg, rgba(45, 90, 61, 0.6), rgba(30, 70, 45, 0.8));
+  border-color: rgba(74, 222, 128, 0.4);
+  color: #4ade80;
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.2);
+}
+
+.preset-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.preset-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .camera-presets {
+    top: 130px;
+    right: 10px;
+  }
+
+  .camera-presets-toggle {
+    padding: 6px 10px;
+  }
+
+  .toggle-label {
+    display: none;
+  }
+
+  .presets-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -55,7 +55,8 @@ export function registerSocketHandlers(io, socket) {
       success: true,
       userId: result.user.userId,
       snapshot: result.snapshot,
-      isReconnect: result.isReconnect
+      isReconnect: result.isReconnect,
+      undoCount: result.user.undoStack.length
     })
   })
 
@@ -138,7 +139,7 @@ export function registerSocketHandlers(io, socket) {
       spawnedBy: user.userId
     })
 
-    callback({ success: true, piece: result.piece.toJSON() })
+    callback({ success: true, piece: result.piece.toJSON(), undoCount: user.undoStack.length })
   })
 
   /**
@@ -235,7 +236,8 @@ export function registerSocketHandlers(io, socket) {
     callback({
       success: true,
       piece: result.piece.toJSON(),
-      adjusted: result.adjusted
+      adjusted: result.adjusted,
+      undoCount: user.undoStack.length
     })
   })
 
@@ -315,7 +317,7 @@ export function registerSocketHandlers(io, socket) {
       deletedBy: user.userId
     })
 
-    callback({ success: true })
+    callback({ success: true, undoCount: user.undoStack.length })
   })
 
   // ==================== UNDO EVENTS ====================
@@ -451,7 +453,7 @@ export function registerSocketHandlers(io, socket) {
         return callback({ error: 'UNKNOWN_ACTION' })
     }
 
-    callback({ success: true, action: action.action })
+    callback({ success: true, action: action.action, undoCount: user.undoStack.length })
   })
 
   // ==================== WALL EVENTS ====================
@@ -497,7 +499,7 @@ export function registerSocketHandlers(io, socket) {
       createdBy: user.userId
     })
 
-    callback({ success: true, wall: result.wall.toJSON() })
+    callback({ success: true, wall: result.wall.toJSON(), undoCount: user.undoStack.length })
   })
 
   /**
@@ -565,7 +567,7 @@ export function registerSocketHandlers(io, socket) {
       deletedIcing: result.deletedIcing || []
     })
 
-    callback({ success: true })
+    callback({ success: true, undoCount: user.undoStack.length })
   })
 
   // ==================== ICING EVENTS ====================
@@ -610,7 +612,7 @@ export function registerSocketHandlers(io, socket) {
       createdBy: user.userId
     })
 
-    callback({ success: true, icing: result.icing.toJSON() })
+    callback({ success: true, icing: result.icing.toJSON(), undoCount: user.undoStack.length })
   })
 
   /**
@@ -654,7 +656,7 @@ export function registerSocketHandlers(io, socket) {
       deletedBy: user.userId
     })
 
-    callback({ success: true })
+    callback({ success: true, undoCount: user.undoStack.length })
   })
 
   // ==================== DISCONNECT ====================
@@ -710,5 +712,56 @@ export function registerSocketHandlers(io, socket) {
    */
   socket.on('ping', (callback) => {
     callback({ timestamp: Date.now() })
+  })
+
+  // ==================== CHAT EVENTS ====================
+
+  /**
+   * Send a chat message
+   * @param {Object} data - { message: string }
+   */
+  socket.on('send_chat_message', (data, callback) => {
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const { message } = data
+
+    // Validate message
+    if (!message || typeof message !== 'string') {
+      return callback({ error: 'INVALID_MESSAGE' })
+    }
+
+    // Trim and limit message length
+    const trimmedMessage = message.trim().slice(0, 500)
+    if (trimmedMessage.length === 0) {
+      return callback({ error: 'EMPTY_MESSAGE' })
+    }
+
+    // Create chat message
+    const chatMessage = room.addChatMessage(user.userId, user.name, user.color, trimmedMessage)
+
+    // Broadcast to all in room (including sender)
+    io.to(room.roomId).emit('chat_message', chatMessage)
+
+    callback({ success: true, message: chatMessage })
+  })
+
+  /**
+   * Get chat history
+   */
+  socket.on('get_chat_history', (callback) => {
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    callback({ success: true, messages: room.getChatHistory() })
   })
 }

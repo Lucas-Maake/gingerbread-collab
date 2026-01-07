@@ -1,6 +1,13 @@
 import { Suspense, useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+import {
+  createGingerbreadTexture,
+  createPeppermintTexture,
+  createFrostingTexture,
+  createStarCookieTexture,
+  getCachedTexture
+} from '../../utils/proceduralTextures'
 
 /**
  * Renders a piece using GLTF model if available, otherwise falls back to primitives.
@@ -159,17 +166,22 @@ function FallbackGeometry({
     case 'windowLarge':
       return <WindowLargeGeometry {...props} />
     default:
+      // Determine material properties based on piece type
+      const isCandyPiece = ['cone', 'cylinder'].includes(config.geometry) // gumdrops, peppermints
+      const candyRoughness = isCandyPiece ? 0.15 : 0.6
+      const candyMetalness = isCandyPiece ? 0.4 : 0.1
       return (
         <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
           <PrimitiveGeometry type={config.geometry} size={config.size} />
           <meshStandardMaterial
             color={color || config.color}
-            roughness={0.6}
-            metalness={0.1}
+            roughness={candyRoughness}
+            metalness={candyMetalness}
             opacity={opacity}
             transparent={opacity < 1}
             emissive={emissive}
             emissiveIntensity={emissiveIntensity}
+            envMapIntensity={isCandyPiece ? 1.5 : 1}
           />
         </mesh>
       )
@@ -258,72 +270,92 @@ function TreeGeometry({ config, color, opacity, emissive, emissiveIntensity, cas
 }
 
 /**
- * Gingerbread Man - person shape with head, body, arms, legs
+ * Gingerbread Man - person shape with head, body, arms, legs and baked cookie texture
  */
 function GingerbreadManGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const bodyColor = color || config.color
   const frostingColor = '#FFFAF0'
   const buttonColor = '#DC143C'
 
+  // Get cached gingerbread texture
+  const gingerbreadTexture = useMemo(() => {
+    return getCachedTexture('gingerbread', createGingerbreadTexture, 256, 256, bodyColor)
+  }, [bodyColor])
+
+  const gingerbreadMaterial = {
+    map: gingerbreadTexture,
+    roughness: 0.85,
+    metalness: 0,
+    opacity: opacity,
+    transparent: opacity < 1,
+    emissive: emissive,
+    emissiveIntensity: emissiveIntensity
+  }
+
   return (
     <group>
       {/* Head */}
       <mesh position={[0, 0.14, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <sphereGeometry args={[0.08, 12, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...gingerbreadMaterial} />
       </mesh>
       {/* Body */}
       <mesh position={[0, 0, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <capsuleGeometry args={[0.06, 0.1, 4, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...gingerbreadMaterial} />
       </mesh>
       {/* Left arm */}
       <mesh position={[-0.1, 0.02, 0]} rotation={[0, 0, Math.PI / 4]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <capsuleGeometry args={[0.025, 0.06, 4, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...gingerbreadMaterial} />
       </mesh>
       {/* Right arm */}
       <mesh position={[0.1, 0.02, 0]} rotation={[0, 0, -Math.PI / 4]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <capsuleGeometry args={[0.025, 0.06, 4, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...gingerbreadMaterial} />
       </mesh>
       {/* Left leg */}
       <mesh position={[-0.04, -0.14, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <capsuleGeometry args={[0.03, 0.06, 4, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...gingerbreadMaterial} />
       </mesh>
       {/* Right leg */}
       <mesh position={[0.04, -0.14, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <capsuleGeometry args={[0.03, 0.06, 4, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...gingerbreadMaterial} />
       </mesh>
-      {/* Frosting buttons */}
+      {/* Frosting buttons - shiny candy */}
       <mesh position={[0, 0.04, 0.06]} castShadow={castShadow}>
         <sphereGeometry args={[0.015, 8, 8]} />
-        <meshStandardMaterial color={buttonColor} roughness={0.3} metalness={0.1} />
+        <meshPhysicalMaterial color={buttonColor} roughness={0.1} metalness={0.1} clearcoat={0.8} />
       </mesh>
       <mesh position={[0, 0, 0.06]} castShadow={castShadow}>
         <sphereGeometry args={[0.015, 8, 8]} />
-        <meshStandardMaterial color={buttonColor} roughness={0.3} metalness={0.1} />
+        <meshPhysicalMaterial color={buttonColor} roughness={0.1} metalness={0.1} clearcoat={0.8} />
       </mesh>
-      {/* Eyes */}
+      {/* Eyes - glossy */}
       <mesh position={[-0.025, 0.16, 0.07]} castShadow={castShadow}>
         <sphereGeometry args={[0.012, 8, 8]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.2} metalness={0} />
+        <meshPhysicalMaterial color="#1a1a1a" roughness={0.1} metalness={0} clearcoat={1} />
       </mesh>
       <mesh position={[0.025, 0.16, 0.07]} castShadow={castShadow}>
         <sphereGeometry args={[0.012, 8, 8]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.2} metalness={0} />
+        <meshPhysicalMaterial color="#1a1a1a" roughness={0.1} metalness={0} clearcoat={1} />
       </mesh>
     </group>
   )
 }
 
 /**
- * Star cookie - 5-pointed star shape
+ * Star cookie - 5-pointed star shape with golden sparkle texture
  */
 function StarGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const starColor = color || config.color
+
+  // Get cached star cookie texture
+  const starTexture = useMemo(() => {
+    return getCachedTexture('star', createStarCookieTexture, 256, 256, starColor)
+  }, [starColor])
 
   // Create star shape with 5 points
   const starShape = useMemo(() => {
@@ -348,17 +380,30 @@ function StarGeometry({ config, color, opacity, emissive, emissiveIntensity, cas
     <group rotation={[-Math.PI / 2, 0, 0]}>
       <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
         <extrudeGeometry args={[starShape, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 2 }]} />
-        <meshStandardMaterial color={starColor} roughness={0.6} metalness={0.1} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial
+          map={starTexture}
+          roughness={0.7}
+          metalness={0.05}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
     </group>
   )
 }
 
 /**
- * Heart cookie - heart shape
+ * Heart cookie - heart shape with baked cookie texture
  */
 function HeartGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const heartColor = color || config.color
+
+  // Get cached gingerbread texture with heart color
+  const heartTexture = useMemo(() => {
+    return getCachedTexture('heart', createGingerbreadTexture, 256, 256, heartColor)
+  }, [heartColor])
 
   // Create heart shape - classic heart with two rounded lobes at top and point at bottom
   const heartShape = useMemo(() => {
@@ -403,17 +448,40 @@ function HeartGeometry({ config, color, opacity, emissive, emissiveIntensity, ca
     <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
       <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
         <extrudeGeometry args={[heartShape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 3 }]} />
-        <meshStandardMaterial color={heartColor} roughness={0.5} metalness={0.1} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial
+          map={heartTexture}
+          roughness={0.75}
+          metalness={0.05}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
     </group>
   )
 }
 
 /**
- * Snowflake - 6-pointed crystalline shape
+ * Snowflake - 6-pointed crystalline ice shape with sparkle
  */
 function SnowflakeGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const snowColor = color || config.color
+
+  // Icy crystal material props
+  const iceMaterial = {
+    color: snowColor,
+    roughness: 0.05,
+    metalness: 0.1,
+    transmission: 0.3,
+    thickness: 0.5,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+    opacity: opacity * 0.9,
+    transparent: true,
+    emissive: emissive,
+    emissiveIntensity: emissiveIntensity
+  }
 
   return (
     <group rotation={[-Math.PI / 2, 0, 0]}>
@@ -423,31 +491,36 @@ function SnowflakeGeometry({ config, color, opacity, emissive, emissiveIntensity
           {/* Main arm */}
           <mesh position={[0, 0.08, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
             <boxGeometry args={[0.015, 0.16, 0.015]} />
-            <meshStandardMaterial color={snowColor} roughness={0.2} metalness={0.3} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+            <meshPhysicalMaterial {...iceMaterial} />
           </mesh>
           {/* Branch left */}
           <mesh position={[-0.025, 0.1, 0]} rotation={[0, 0, Math.PI / 4]} castShadow={castShadow}>
             <boxGeometry args={[0.01, 0.04, 0.01]} />
-            <meshStandardMaterial color={snowColor} roughness={0.2} metalness={0.3} opacity={opacity} transparent={opacity < 1} />
+            <meshPhysicalMaterial {...iceMaterial} />
           </mesh>
           {/* Branch right */}
           <mesh position={[0.025, 0.1, 0]} rotation={[0, 0, -Math.PI / 4]} castShadow={castShadow}>
             <boxGeometry args={[0.01, 0.04, 0.01]} />
-            <meshStandardMaterial color={snowColor} roughness={0.2} metalness={0.3} opacity={opacity} transparent={opacity < 1} />
+            <meshPhysicalMaterial {...iceMaterial} />
           </mesh>
         </group>
       ))}
       {/* Center hexagon */}
       <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
         <cylinderGeometry args={[0.03, 0.03, 0.02, 6]} />
-        <meshStandardMaterial color={snowColor} roughness={0.2} metalness={0.3} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshPhysicalMaterial {...iceMaterial} />
+      </mesh>
+      {/* Center sparkle highlight */}
+      <mesh position={[0, 0, 0.015]}>
+        <sphereGeometry args={[0.01, 8, 8]} />
+        <meshStandardMaterial color="#ffffff" roughness={0} metalness={1} transparent opacity={0.8} />
       </mesh>
     </group>
   )
 }
 
 /**
- * Present - gift box with ribbon
+ * Present - gift box with shiny satin ribbon
  */
 function PresentGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const boxColor = color || config.color
@@ -455,30 +528,40 @@ function PresentGeometry({ config, color, opacity, emissive, emissiveIntensity, 
 
   return (
     <group>
-      {/* Main box */}
+      {/* Main box - wrapped paper look */}
       <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
         <boxGeometry args={[0.2, 0.18, 0.2]} />
-        <meshStandardMaterial color={boxColor} roughness={0.4} metalness={0.1} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshPhysicalMaterial
+          color={boxColor}
+          roughness={0.3}
+          metalness={0.05}
+          clearcoat={0.3}
+          clearcoatRoughness={0.4}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
-      {/* Horizontal ribbon */}
+      {/* Horizontal ribbon - satin shine */}
       <mesh position={[0, 0, 0]} castShadow={castShadow}>
         <boxGeometry args={[0.21, 0.03, 0.21]} />
-        <meshStandardMaterial color={ribbonColor} roughness={0.3} metalness={0.2} />
+        <meshPhysicalMaterial color={ribbonColor} roughness={0.15} metalness={0.5} clearcoat={0.8} clearcoatRoughness={0.2} />
       </mesh>
       {/* Vertical ribbon */}
       <mesh position={[0, 0, 0]} castShadow={castShadow}>
         <boxGeometry args={[0.03, 0.19, 0.21]} />
-        <meshStandardMaterial color={ribbonColor} roughness={0.3} metalness={0.2} />
+        <meshPhysicalMaterial color={ribbonColor} roughness={0.15} metalness={0.5} clearcoat={0.8} clearcoatRoughness={0.2} />
       </mesh>
       {/* Bow loop left */}
       <mesh position={[-0.04, 0.11, 0]} rotation={[0, 0, Math.PI / 6]} castShadow={castShadow}>
         <torusGeometry args={[0.03, 0.012, 8, 12, Math.PI]} />
-        <meshStandardMaterial color={ribbonColor} roughness={0.3} metalness={0.2} />
+        <meshPhysicalMaterial color={ribbonColor} roughness={0.15} metalness={0.5} clearcoat={0.8} clearcoatRoughness={0.2} />
       </mesh>
       {/* Bow loop right */}
       <mesh position={[0.04, 0.11, 0]} rotation={[0, 0, -Math.PI / 6]} castShadow={castShadow}>
         <torusGeometry args={[0.03, 0.012, 8, 12, Math.PI]} />
-        <meshStandardMaterial color={ribbonColor} roughness={0.3} metalness={0.2} />
+        <meshPhysicalMaterial color={ribbonColor} roughness={0.15} metalness={0.5} clearcoat={0.8} clearcoatRoughness={0.2} />
       </mesh>
     </group>
   )
@@ -572,34 +655,49 @@ function LicoriceGeometry({ config, color, opacity, emissive, emissiveIntensity,
 }
 
 /**
- * Frosting Dollop - swirled whipped cream/frosting
+ * Frosting Dollop - swirled whipped cream/frosting with creamy texture
  */
 function FrostingDollopGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const frostingColor = color || config.color
+
+  // Get cached frosting texture
+  const frostingTexture = useMemo(() => {
+    return getCachedTexture('frosting', createFrostingTexture, 128, 128, frostingColor)
+  }, [frostingColor])
+
+  const frostingMaterial = {
+    map: frostingTexture,
+    roughness: 0.4,
+    metalness: 0,
+    opacity: opacity,
+    transparent: opacity < 1,
+    emissive: emissive,
+    emissiveIntensity: emissiveIntensity
+  }
 
   return (
     <group>
       {/* Base layer */}
       <mesh position={[0, -0.04, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <sphereGeometry args={[0.09, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...frostingMaterial} />
       </mesh>
       {/* Middle swirl */}
       <mesh position={[0, 0.01, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <sphereGeometry args={[0.065, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...frostingMaterial} />
       </mesh>
       {/* Top peak */}
       <mesh position={[0, 0.05, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <coneGeometry args={[0.04, 0.06, 8]} />
-        <meshStandardMaterial color={frostingColor} roughness={0.3} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshStandardMaterial {...frostingMaterial} />
       </mesh>
     </group>
   )
 }
 
 /**
- * Candy Button - shiny round candy button
+ * Candy Button - shiny round candy button with glossy surface
  */
 function CandyButtonGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }) {
   const candyColor = color || config.color
@@ -609,17 +707,37 @@ function CandyButtonGeometry({ config, color, opacity, emissive, emissiveIntensi
       {/* Main button body */}
       <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
         <cylinderGeometry args={[0.07, 0.08, 0.03, 16]} />
-        <meshStandardMaterial color={candyColor} roughness={0.2} metalness={0.3} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshPhysicalMaterial
+          color={candyColor}
+          roughness={0.05}
+          metalness={0.1}
+          clearcoat={1}
+          clearcoatRoughness={0.1}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
       {/* Domed top */}
       <mesh position={[0, 0.015, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
         <sphereGeometry args={[0.07, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color={candyColor} roughness={0.2} metalness={0.3} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
+        <meshPhysicalMaterial
+          color={candyColor}
+          roughness={0.05}
+          metalness={0.1}
+          clearcoat={1}
+          clearcoatRoughness={0.1}
+          opacity={opacity}
+          transparent={opacity < 1}
+          emissive={emissive}
+          emissiveIntensity={emissiveIntensity}
+        />
       </mesh>
       {/* Shiny highlight */}
       <mesh position={[0.02, 0.05, 0.02]} castShadow={castShadow}>
-        <sphereGeometry args={[0.015, 8, 8]} />
-        <meshStandardMaterial color="#ffffff" roughness={0} metalness={0.5} transparent opacity={0.6} />
+        <sphereGeometry args={[0.018, 8, 8]} />
+        <meshStandardMaterial color="#ffffff" roughness={0} metalness={0.8} transparent opacity={0.7} />
       </mesh>
     </group>
   )

@@ -49,6 +49,21 @@ export default function CameraController() {
     return () => window.removeEventListener('resetCamera', handleReset)
   }, [])
 
+  // Listen for camera preset events
+  useEffect(() => {
+    const handlePreset = (e) => {
+      const { azimuth: newAzimuth, polar: newPolar, zoom: newZoom } = e.detail
+      if (newAzimuth !== undefined) azimuth.current = newAzimuth
+      if (newPolar !== undefined) polar.current = newPolar
+      if (newZoom !== undefined) currentZoom.current = newZoom
+      // Reset center to origin for preset views
+      targetCenter.current.set(0, 0, 0)
+    }
+
+    window.addEventListener('setCameraPreset', handlePreset)
+    return () => window.removeEventListener('setCameraPreset', handlePreset)
+  }, [])
+
   useEffect(() => {
     const canvas = gl.domElement
 

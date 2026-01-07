@@ -9,7 +9,10 @@ import SfxMuteButton from './SfxMuteButton'
 import ScreenshotButton from './ScreenshotButton'
 import ResetCameraButton from './ResetCameraButton'
 import ResetRoomButton from './ResetRoomButton'
+import DayNightToggle from './DayNightToggle'
 import BuildToolbar from './BuildToolbar'
+import ChatPanel from './ChatPanel'
+import CameraPresets from './CameraPresets'
 import './RoomPage.css'
 
 export default function RoomPage() {
@@ -24,6 +27,7 @@ export default function RoomPage() {
   const connectionState = useGameStore((state) => state.connectionState)
   const pieceCount = useGameStore((state) => state.pieceCount)
   const maxPieces = useGameStore((state) => state.maxPieces)
+  const undoCount = useGameStore((state) => state.undoCount)
 
   // Join room on mount
   useEffect(() => {
@@ -145,8 +149,13 @@ export default function RoomPage() {
       </div>
 
       {/* Undo Button */}
-      <button className="undo-button" onClick={handleUndo}>
-        Undo
+      <button
+        className={`undo-button ${undoCount === 0 ? 'disabled' : ''}`}
+        onClick={handleUndo}
+        disabled={undoCount === 0}
+        title={undoCount > 0 ? `Undo (${undoCount} available)` : 'Nothing to undo'}
+      >
+        Undo {undoCount > 0 && <span className="undo-count">({undoCount})</span>}
       </button>
 
       {/* Build Toolbar */}
@@ -177,6 +186,15 @@ export default function RoomPage() {
 
       {/* Reset Room Button */}
       <ResetRoomButton />
+
+      {/* Day/Night Toggle */}
+      <DayNightToggle />
+
+      {/* Chat Panel */}
+      <ChatPanel />
+
+      {/* Camera Presets */}
+      <CameraPresets />
     </div>
   )
 }

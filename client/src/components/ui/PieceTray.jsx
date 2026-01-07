@@ -50,11 +50,14 @@ export default function PieceTray() {
   const spawnPiece = useGameStore((state) => state.spawnPiece)
   const pieceCount = useGameStore((state) => state.pieceCount)
   const maxPieces = useGameStore((state) => state.maxPieces)
+  const setBuildMode = useGameStore((state) => state.setBuildMode)
 
   const isAtLimit = pieceCount >= maxPieces
 
   const handleSpawn = async (type) => {
     if (isAtLimit) return
+    // Auto-switch to select mode so the user can place the piece
+    setBuildMode('select')
     await spawnPiece(type)
   }
 
@@ -70,7 +73,7 @@ export default function PieceTray() {
                 className="piece-button"
                 onClick={() => handleSpawn(piece.type)}
                 disabled={isAtLimit}
-                title={isAtLimit ? 'Room piece limit reached (50 max)' : `Spawn ${piece.label}`}
+                title={isAtLimit ? `Room piece limit reached (${maxPieces} max)` : `Spawn ${piece.label}`}
               >
                 <span className="piece-icon">{piece.icon}</span>
                 <span className="piece-label">{piece.label}</span>
@@ -82,7 +85,7 @@ export default function PieceTray() {
 
       {isAtLimit && (
         <div className="limit-warning">
-          Piece limit reached (50 max)
+          Piece limit reached ({maxPieces} max)
         </div>
       )}
     </div>

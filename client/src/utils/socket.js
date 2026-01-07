@@ -481,6 +481,28 @@ export function deleteIcingStroke(icingId) {
   })
 }
 
+// ==================== CHAT OPERATIONS ====================
+
+/**
+ * Send a chat message
+ */
+export function sendChatMessage(message) {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error('Not connected'))
+      return
+    }
+
+    socket.emit('send_chat_message', { message }, (response) => {
+      if (response.error) {
+        reject(new Error(response.error))
+      } else {
+        resolve(response)
+      }
+    })
+  })
+}
+
 // ==================== UTILITY ====================
 
 /**

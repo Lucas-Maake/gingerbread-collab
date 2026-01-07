@@ -1,12 +1,12 @@
 // Room Configuration (from PRD)
 export const ROOM_CONFIG = {
   MAX_USERS_PER_ROOM: 6,
-  MAX_PIECES_PER_ROOM: 50,
+  MAX_PIECES_PER_ROOM: 150,
   ROOM_CODE_LENGTH: 6,
   EMPTY_ROOM_TIMEOUT_MS: 60000, // 60 seconds
   IDLE_ROOM_WARNING_MS: 1800000, // 30 minutes
   IDLE_ROOM_TIMEOUT_MS: 300000, // 5 minutes after warning
-  RECONNECT_GRACE_PERIOD_MS: 30000, // 30 seconds
+  RECONNECT_GRACE_PERIOD_MS: 300000, // 5 minutes
 }
 
 // Build Surface Configuration

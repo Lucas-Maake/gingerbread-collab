@@ -13,10 +13,10 @@ const APRON_HEIGHT = 0.5
 const APRON_THICKNESS = 0.15
 const APRON_INSET = 0.3
 
-// Wood colors (base)
-const WOOD_COLOR = '#C9A07A'
-const WOOD_DARK = '#A8845C'
-const WOOD_LEGS = '#B8956A'
+// Wood colors (richer, darker tones)
+const WOOD_COLOR = '#A07850'
+const WOOD_DARK = '#8B6842'
+const WOOD_LEGS = '#966B4A'
 
 
 /**

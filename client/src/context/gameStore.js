@@ -42,6 +42,15 @@ export const useGameStore = create((set, get) => ({
   isLoading: false,
   error: null,
   notification: null,
+  timeOfDay: 'day', // 'day' | 'night'
+
+  // ==================== CHAT STATE ====================
+  chatMessages: [], // Array of { id, userId, userName, userColor, message, timestamp }
+  isChatOpen: false,
+  unreadChatCount: 0,
+
+  // ==================== UNDO STATE ====================
+  undoCount: 0, // Number of undo actions available
 
   // ==================== ACTIONS ====================
 
@@ -107,7 +116,7 @@ export const useGameStore = create((set, get) => ({
       const response = await socket.joinRoom(roomId, userName)
 
       // Parse snapshot
-      const { snapshot, userId } = response
+      const { snapshot, userId, undoCount = 0 } = response
 
       // Build users map
       const usersMap = new Map()
@@ -137,6 +146,9 @@ export const useGameStore = create((set, get) => ({
         }
       }
 
+      // Load chat history
+      const chatMessages = snapshot.chatMessages || []
+
       set({
         roomId: snapshot.roomId,
         userId,
@@ -144,9 +156,11 @@ export const useGameStore = create((set, get) => ({
         pieces: piecesMap,
         walls: wallsMap,
         icing: icingMap,
+        chatMessages,
         localUser: usersMap.get(userId),
         pieceCount: snapshot.pieceCount,
         maxPieces: snapshot.maxPieces,
+        undoCount,
         connectionState: 'connected',
         isLoading: false
       })
@@ -170,6 +184,9 @@ export const useGameStore = create((set, get) => ({
       pieces: new Map(),
       walls: new Map(),
       icing: new Map(),
+      chatMessages: [],
+      isChatOpen: false,
+      unreadChatCount: 0,
       localUser: null,
       heldPieceId: null,
       pieceCount: 0,
@@ -193,7 +210,9 @@ export const useGameStore = create((set, get) => ({
       // Piece will be added via socket event
       // Auto-grab: piece is immediately held by spawner (per PRD)
       if (response.piece) {
-        set({ heldPieceId: response.piece.pieceId })
+        const updates = { heldPieceId: response.piece.pieceId }
+        if (response.undoCount !== undefined) updates.undoCount = response.undoCount
+        set(updates)
         playGlobalSound(SoundType.SPAWN)
       }
       return response.piece
@@ -227,7 +246,9 @@ export const useGameStore = create((set, get) => ({
 
     try {
       const response = await socket.releasePiece(state.heldPieceId, pos, yaw, attachedTo)
-      set({ heldPieceId: null, snapInfo: null })
+      const updates = { heldPieceId: null, snapInfo: null }
+      if (response.undoCount !== undefined) updates.undoCount = response.undoCount
+      set(updates)
       // Play snap sound if piece was snapped, otherwise release sound
       if (response.adjusted || attachedTo) {
         playGlobalSound(SoundType.SNAP)
@@ -259,8 +280,11 @@ export const useGameStore = create((set, get) => ({
 
   deletePiece: async (pieceId) => {
     try {
-      await socket.deletePiece(pieceId)
+      const response = await socket.deletePiece(pieceId)
       // Piece will be removed via socket event
+      if (response.undoCount !== undefined) {
+        set({ undoCount: response.undoCount })
+      }
       playGlobalSound(SoundType.DELETE)
     } catch (error) {
       set({ error: error.message })
@@ -275,10 +299,13 @@ export const useGameStore = create((set, get) => ({
   // Undo action
   undo: async () => {
     try {
-      await socket.undo()
+      const response = await socket.undo()
+      if (response.undoCount !== undefined) {
+        set({ undoCount: response.undoCount })
+      }
     } catch (error) {
       if (error.message === 'NOTHING_TO_UNDO') {
-        set({ notification: { type: 'info', message: 'Nothing to undo' } })
+        set({ notification: { type: 'info', message: 'Nothing to undo' }, undoCount: 0 })
       } else {
         set({ error: error.message })
       }
@@ -380,6 +407,10 @@ export const useGameStore = create((set, get) => ({
   // Set notification
   showNotification: (type, message) => set({ notification: { type, message } }),
 
+  // Time of day toggle
+  toggleTimeOfDay: () => set({ timeOfDay: get().timeOfDay === 'day' ? 'night' : 'day' }),
+  setTimeOfDay: (time) => set({ timeOfDay: time }),
+
   // ==================== BUILD MODE ACTIONS ====================
 
   setBuildMode: (mode) => {
@@ -419,6 +450,9 @@ export const useGameStore = create((set, get) => ({
     try {
       const response = await socket.createWallSegment(start, end, height)
       // Wall will be added via socket event
+      if (response.undoCount !== undefined) {
+        set({ undoCount: response.undoCount })
+      }
       playGlobalSound(SoundType.SPAWN)
       return response.wall
     } catch (error) {
@@ -429,8 +463,11 @@ export const useGameStore = create((set, get) => ({
 
   deleteWall: async (wallId) => {
     try {
-      await socket.deleteWallSegment(wallId)
+      const response = await socket.deleteWallSegment(wallId)
       // Wall will be removed via socket event
+      if (response.undoCount !== undefined) {
+        set({ undoCount: response.undoCount })
+      }
       playGlobalSound(SoundType.DELETE)
     } catch (error) {
       set({ error: error.message })
@@ -457,6 +494,9 @@ export const useGameStore = create((set, get) => ({
     try {
       const response = await socket.createIcingStroke(points, radius, surfaceType, surfaceId)
       // Icing will be added via socket event
+      if (response.undoCount !== undefined) {
+        set({ undoCount: response.undoCount })
+      }
       playGlobalSound(SoundType.RELEASE)
       return response.icing
     } catch (error) {
@@ -467,8 +507,11 @@ export const useGameStore = create((set, get) => ({
 
   deleteIcing: async (icingId) => {
     try {
-      await socket.deleteIcingStroke(icingId)
+      const response = await socket.deleteIcingStroke(icingId)
       // Icing will be removed via socket event
+      if (response.undoCount !== undefined) {
+        set({ undoCount: response.undoCount })
+      }
       playGlobalSound(SoundType.DELETE)
     } catch (error) {
       set({ error: error.message })
@@ -523,6 +566,43 @@ export const useGameStore = create((set, get) => ({
     const icing = new Map(get().icing)
     icing.delete(data.icingId)
     set({ icing })
+  },
+
+  // ==================== CHAT ACTIONS ====================
+
+  sendChatMessage: async (message) => {
+    try {
+      await socket.sendChatMessage(message)
+    } catch (error) {
+      set({ error: error.message })
+    }
+  },
+
+  toggleChat: () => {
+    const isOpen = !get().isChatOpen
+    set({
+      isChatOpen: isOpen,
+      unreadChatCount: isOpen ? 0 : get().unreadChatCount
+    })
+  },
+
+  openChat: () => set({ isChatOpen: true, unreadChatCount: 0 }),
+  closeChat: () => set({ isChatOpen: false }),
+
+  handleChatMessage: (data) => {
+    const state = get()
+    const chatMessages = [...state.chatMessages, data]
+    // Keep only last 100 messages on client too
+    if (chatMessages.length > 100) {
+      chatMessages.shift()
+    }
+    set({
+      chatMessages,
+      // Increment unread count if chat is closed and message is from another user
+      unreadChatCount: !state.isChatOpen && data.userId !== state.userId
+        ? state.unreadChatCount + 1
+        : state.unreadChatCount
+    })
   }
 }))
 
@@ -570,6 +650,9 @@ export function initSocketListeners() {
   // Icing events
   socket.on('icing_stroke_created', (data) => useGameStore.getState().handleIcingCreated(data))
   socket.on('icing_stroke_deleted', (data) => useGameStore.getState().handleIcingDeleted(data))
+
+  // Chat events
+  socket.on('chat_message', (data) => useGameStore.getState().handleChatMessage(data))
 }
 
 /**

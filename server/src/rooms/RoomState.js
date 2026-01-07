@@ -180,6 +180,7 @@ export class RoomState {
     this.walls = new Map() // Map<wallId, WallState>
     this.icing = new Map() // Map<icingId, IcingState>
     this.occupancy = new Map() // Map<cellKey, pieceId>
+    this.chatMessages = [] // Array of chat messages (max 100)
     this.createdAt = Date.now()
     this.lastActivityAt = Date.now()
     this.availableColors = [...USER_COLORS]
@@ -549,6 +550,32 @@ export class RoomState {
     return this.icing.get(icingId)
   }
 
+  // Chat management
+  addChatMessage(userId, userName, userColor, message) {
+    const chatMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      userName,
+      userColor,
+      message,
+      timestamp: Date.now()
+    }
+
+    this.chatMessages.push(chatMessage)
+
+    // Keep only last 100 messages
+    if (this.chatMessages.length > 100) {
+      this.chatMessages.shift()
+    }
+
+    this.lastActivityAt = Date.now()
+    return chatMessage
+  }
+
+  getChatHistory() {
+    return this.chatMessages
+  }
+
   // Snapshot for new clients
   getSnapshot() {
     return {
@@ -557,6 +584,7 @@ export class RoomState {
       pieces: Array.from(this.pieces.values()).map(p => p.toJSON()),
       walls: Array.from(this.walls.values()).map(w => w.toJSON()),
       icing: Array.from(this.icing.values()).map(i => i.toJSON()),
+      chatMessages: this.chatMessages,
       pieceCount: this.pieceCount,
       maxPieces: ROOM_CONFIG.MAX_PIECES_PER_ROOM
     }

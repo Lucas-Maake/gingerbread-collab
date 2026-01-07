@@ -1,6 +1,7 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useGameStore } from '../../context/gameStore'
 
 // Vertex shader - renders directly to screen space (ignores camera)
 const vertexShader = `
@@ -19,6 +20,7 @@ const fragmentShader = `
 uniform float uTime;
 uniform vec2 uResolution;
 uniform float uFrostIntensity;
+uniform float uNightMix;
 
 varying vec2 vUv;
 
@@ -75,31 +77,66 @@ float treeShape(vec2 uv, vec2 pos, float height, float width) {
 
 // === WINTER SCENE ===
 vec3 winterScene(vec2 uv) {
-  // Sky gradient - richer colors
-  vec3 skyTop = vec3(0.45, 0.58, 0.78);
-  vec3 skyMid = vec3(0.68, 0.75, 0.85);
-  vec3 skyBottom = vec3(0.85, 0.82, 0.88);
+  // Day sky gradient
+  vec3 daySkyTop = vec3(0.45, 0.58, 0.78);
+  vec3 daySkyMid = vec3(0.68, 0.75, 0.85);
+  vec3 daySkyBottom = vec3(0.85, 0.82, 0.88);
+
+  // Night sky gradient (deep blue with purple tones)
+  vec3 nightSkyTop = vec3(0.05, 0.08, 0.18);
+  vec3 nightSkyMid = vec3(0.10, 0.12, 0.25);
+  vec3 nightSkyBottom = vec3(0.15, 0.18, 0.32);
+
+  // Interpolate sky colors
+  vec3 skyTop = mix(daySkyTop, nightSkyTop, uNightMix);
+  vec3 skyMid = mix(daySkyMid, nightSkyMid, uNightMix);
+  vec3 skyBottom = mix(daySkyBottom, nightSkyBottom, uNightMix);
+
   vec3 sky = mix(skyBottom, skyMid, smoothstep(0.0, 0.5, uv.y));
   sky = mix(sky, skyTop, smoothstep(0.5, 1.0, uv.y));
 
-  // Distant mountains
+  // Add stars at night (soft circular stars, no hard edges)
+  float starField = 0.0;
+  vec2 starUv = uv * 60.0;
+  vec2 starCell = floor(starUv);
+  vec2 starF = fract(starUv) - 0.5;
+  float starRand = hash(starCell);
+  // Only some cells have stars
+  float hasStar = step(0.92, starRand);
+  // Random position within cell
+  vec2 starPos = vec2(hash(starCell + 0.1), hash(starCell + 0.2)) - 0.5;
+  starPos *= 0.6;
+  // Soft circular star
+  float starDist = length(starF - starPos);
+  float star = smoothstep(0.08, 0.0, starDist) * hasStar;
+  // Twinkle
+  float twinkle = 0.6 + 0.4 * sin(uTime * 2.0 + starRand * 50.0);
+  // Only show in upper part of sky, fade with night mix
+  float starMask = smoothstep(0.35, 0.5, uv.y) * uNightMix;
+  sky += vec3(star * twinkle * starMask * 0.8);
+
+  // Distant mountains (darker at night)
   float mountainLine = 0.38 + noise(vec2(uv.x * 1.5, 0.0)) * 0.08;
   float mountainLine2 = 0.32 + noise(vec2(uv.x * 2.5 + 5.0, 0.5)) * 0.06;
-  vec3 mountainColor = vec3(0.68, 0.72, 0.82);
-  vec3 mountainColor2 = vec3(0.75, 0.78, 0.86);
+  vec3 dayMountain = vec3(0.68, 0.72, 0.82);
+  vec3 nightMountain = vec3(0.15, 0.18, 0.28);
+  vec3 mountainColor = mix(dayMountain, nightMountain, uNightMix);
+  vec3 mountainColor2 = mix(vec3(0.75, 0.78, 0.86), vec3(0.18, 0.20, 0.30), uNightMix);
 
   // Rolling hills
   float hillLine = 0.30 + noise(vec2(uv.x * 3.0, 1.0)) * 0.05;
-  vec3 hillColor = vec3(0.82, 0.84, 0.88);
+  vec3 hillColor = mix(vec3(0.82, 0.84, 0.88), vec3(0.20, 0.22, 0.32), uNightMix);
 
-  // Forest tree line base - moved up
+  // Forest tree line base
   float forestBase = 0.26 + noise(vec2(uv.x * 6.0, 2.0)) * 0.03;
-  vec3 forestColor = vec3(0.22, 0.30, 0.26);
+  vec3 forestColor = mix(vec3(0.22, 0.30, 0.26), vec3(0.08, 0.12, 0.10), uNightMix);
 
-  // Snow ground with texture - moved up
+  // Snow ground with texture (slightly blue-tinted at night)
   float groundNoise = noise(vec2(uv.x * 20.0, uv.y * 5.0)) * 0.02;
-  vec3 snowColor = vec3(0.94 + groundNoise, 0.96 + groundNoise, 0.98);
-  vec3 snowShadow = vec3(0.88, 0.91, 0.95);
+  vec3 daySnow = vec3(0.94 + groundNoise, 0.96 + groundNoise, 0.98);
+  vec3 nightSnow = vec3(0.35 + groundNoise, 0.38 + groundNoise, 0.50);
+  vec3 snowColor = mix(daySnow, nightSnow, uNightMix);
+  vec3 snowShadow = mix(vec3(0.88, 0.91, 0.95), vec3(0.25, 0.28, 0.40), uNightMix);
 
   // Compose scene from back to front
   vec3 scene = sky;
@@ -137,29 +174,32 @@ vec3 winterScene(vec2 uv) {
   return scene;
 }
 
-// === FALLING SNOW (optimized - 2 layers) ===
+// === FALLING SNOW (soft circular particles) ===
 float snowParticles(vec2 uv, float time) {
   float snow = 0.0;
 
-  // Layer 1 - larger, slower
-  vec2 p1 = uv * 15.0;
-  p1.y += time * 1.0;
+  // Layer 1 - larger, slower flakes
+  vec2 p1 = uv * 12.0;
+  p1.y += time * 0.8;
   vec2 cell1 = floor(p1);
-  vec2 f1 = fract(p1) - 0.5;
+  vec2 f1 = fract(p1);
   float r1 = hash(cell1);
-  vec2 pos1 = vec2(r1 - 0.5, fract(r1 * 13.7) - 0.5) * 0.7;
-  pos1.x += sin(time * 0.5 + r1 * 6.28) * 0.15;
-  snow += smoothstep(0.025, 0.0, length(f1 - pos1)) * 0.6;
+  // Random position within cell (centered)
+  vec2 center1 = vec2(0.3 + r1 * 0.4, 0.3 + fract(r1 * 7.0) * 0.4);
+  center1.x += sin(time * 0.4 + r1 * 6.28) * 0.1;
+  float dist1 = length(f1 - center1);
+  snow += smoothstep(0.06, 0.02, dist1) * 0.5;
 
-  // Layer 2 - smaller, faster
-  vec2 p2 = uv * 25.0;
-  p2.y += time * 1.8;
+  // Layer 2 - smaller, faster flakes
+  vec2 p2 = uv * 20.0;
+  p2.y += time * 1.5;
   vec2 cell2 = floor(p2);
-  vec2 f2 = fract(p2) - 0.5;
-  float r2 = hash(cell2 + 100.0);
-  vec2 pos2 = vec2(r2 - 0.5, fract(r2 * 17.3) - 0.5) * 0.7;
-  pos2.x += sin(time * 0.6 + r2 * 6.28) * 0.12;
-  snow += smoothstep(0.018, 0.0, length(f2 - pos2)) * 0.4;
+  vec2 f2 = fract(p2);
+  float r2 = hash(cell2 + 50.0);
+  vec2 center2 = vec2(0.3 + r2 * 0.4, 0.3 + fract(r2 * 11.0) * 0.4);
+  center2.x += sin(time * 0.5 + r2 * 6.28) * 0.08;
+  float dist2 = length(f2 - center2);
+  snow += smoothstep(0.04, 0.01, dist2) * 0.35;
 
   return snow;
 }
@@ -175,23 +215,30 @@ void main() {
   // Get winter scene - crisp and clear
   vec3 scene = winterScene(distortedUv);
 
-  // Add falling snow
+  // Add falling snow (reduced at night to avoid artifacts)
   float snow = snowParticles(uv, uTime);
-  scene += vec3(snow) * 0.5;
+  float snowOpacity = mix(0.5, 0.2, uNightMix);
+  scene += vec3(snow) * snowOpacity;
 
   // Pronounced frost vignette - stronger at edges
   float vignette = length(uv - 0.5);
   float frostEdge = smoothstep(0.25, 0.6, vignette) * uFrostIntensity * 0.25;
-  scene = mix(scene, vec3(0.90, 0.93, 0.97), frostEdge);
+  vec3 dayFrost = vec3(0.90, 0.93, 0.97);
+  vec3 nightFrost = vec3(0.20, 0.22, 0.35);
+  scene = mix(scene, mix(dayFrost, nightFrost, uNightMix), frostEdge);
 
   // Stronger corner frost
   vec2 cornerDist = min(uv, 1.0 - uv);
   float cornerFrost = smoothstep(0.15, 0.0, min(cornerDist.x, cornerDist.y));
-  scene = mix(scene, vec3(0.92, 0.95, 1.0), cornerFrost * 0.4 * uFrostIntensity);
+  vec3 dayCornerFrost = vec3(0.92, 0.95, 1.0);
+  vec3 nightCornerFrost = vec3(0.18, 0.20, 0.32);
+  scene = mix(scene, mix(dayCornerFrost, nightCornerFrost, uNightMix), cornerFrost * 0.4 * uFrostIntensity);
 
   // Edge frost along borders
   float edgeFrost = smoothstep(0.08, 0.0, min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)));
-  scene = mix(scene, vec3(0.94, 0.96, 1.0), edgeFrost * 0.35 * uFrostIntensity);
+  vec3 dayEdgeFrost = vec3(0.94, 0.96, 1.0);
+  vec3 nightEdgeFrost = vec3(0.15, 0.18, 0.30);
+  scene = mix(scene, mix(dayEdgeFrost, nightEdgeFrost, uNightMix), edgeFrost * 0.35 * uFrostIntensity);
 
   gl_FragColor = vec4(scene, 1.0);
 }
@@ -205,6 +252,7 @@ void main() {
 export default function FrostedBackground() {
   const materialRef = useRef()
   const { size } = useThree()
+  const timeOfDay = useGameStore((state) => state.timeOfDay)
 
   // Create shader material
   const shaderMaterial = useMemo(() => {
@@ -212,7 +260,8 @@ export default function FrostedBackground() {
       uniforms: {
         uTime: { value: 0 },
         uResolution: { value: new THREE.Vector2(size.width, size.height) },
-        uFrostIntensity: { value: 0.8 }
+        uFrostIntensity: { value: 0.8 },
+        uNightMix: { value: 0 }
       },
       vertexShader,
       fragmentShader,
@@ -221,6 +270,13 @@ export default function FrostedBackground() {
       side: THREE.FrontSide
     })
   }, [])
+
+  // Update night mix when timeOfDay changes
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uNightMix.value = timeOfDay === 'night' ? 1.0 : 0.0
+    }
+  }, [timeOfDay])
 
   // Only animate time - background is static in screen space
   useFrame((state, delta) => {

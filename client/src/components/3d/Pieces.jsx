@@ -5,9 +5,9 @@ import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
 import PieceModel from './PieceModel'
 
-// Gingerbread piece colors
-const GINGERBREAD_COLOR = '#CD853F'
-const GINGERBREAD_DARK = '#A0522D'
+// Gingerbread piece colors (deep dark brown tones)
+const GINGERBREAD_COLOR = '#5A3A1A'
+const GINGERBREAD_DARK = '#3D2812'
 const FROSTING_COLOR = '#FFFAF0'
 const CANDY_RED = '#DC143C'
 const CANDY_GREEN = '#228B22'
