@@ -267,6 +267,9 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }) {
 
   const config = PIECE_CONFIGS[piece.type] || PIECE_CONFIGS.GUMDROP
   const users = useGameStore((state) => state.users)
+  const snapInfo = useGameStore((state) => state.snapInfo)
+  const walls = useGameStore((state) => state.walls)
+  const allPieces = useGameStore((state) => state.pieces)
 
   // Handle click on piece
   const handleClick = async (event) => {
@@ -344,11 +347,23 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }) {
   })
 
   // Position from piece state
-  // For snappable pieces (doors, windows), use actual Y position from state
+  // For snappable pieces (doors, windows, decoratives), use actual Y position from state when snapped
   // For other pieces, use config.yOffset (ground-based)
   const basePosition = piece.pos || [0, 0, 0]
-  const isSnappablePiece = ['DOOR', 'WINDOW_SMALL', 'WINDOW_LARGE'].includes(piece.type)
-  const yPos = isSnappablePiece && basePosition[1] > 0.2
+  const isWindowOrDoor = ['DOOR', 'WINDOW_SMALL', 'WINDOW_LARGE'].includes(piece.type)
+  const isDecorativeSnappable = [
+    'GUMDROP', 'PEPPERMINT', 'COOKIE_STAR', 'COOKIE_HEART', 'SNOWFLAKE',
+    'CANDY_BUTTON', 'FROSTING_DOLLOP', 'PRESENT', 'CHIMNEY'
+  ].includes(piece.type)
+  const isSnappedPiece = piece.attachedTo !== null && piece.attachedTo !== undefined
+
+  // Check if piece is currently being snapped (during drag) via snapInfo
+  const isCurrentlySnapping = isLocallyHeld && snapInfo !== null
+
+  // Use snapped Y position if piece is snapped (either released+attached or currently snapping)
+  // For currently snapping pieces, basePosition already contains the snapped Y from updatePieceTransform
+  const useSnappedY = (isWindowOrDoor || isDecorativeSnappable) && (isSnappedPiece || isCurrentlySnapping)
+  const yPos = useSnappedY && basePosition[1] > 0.05
     ? basePosition[1]  // Use snapped Y position
     : config.yOffset   // Use default ground-based offset
   const position = [
@@ -357,12 +372,99 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }) {
     basePosition[2]
   ]
 
+  // Calculate wall normal from attachedTo ID
+  const getWallNormal = (attachedToId) => {
+    if (!attachedToId || attachedToId === 'roof') return null
+
+    // Check if it's a drawn wall
+    const drawnWall = walls.get(attachedToId)
+    if (drawnWall) {
+      // Calculate normal from wall start/end points
+      const [startX, startZ] = drawnWall.start
+      const [endX, endZ] = drawnWall.end
+      const wallDx = endX - startX
+      const wallDz = endZ - startZ
+      const wallLength = Math.sqrt(wallDx * wallDx + wallDz * wallDz)
+      if (wallLength < 0.1) return null
+      // Perpendicular to wall direction
+      const nx = -wallDz / wallLength
+      const nz = wallDx / wallLength
+      // Determine side based on piece position relative to wall
+      const piecePos = piece.pos || [0, 0, 0]
+      const wallCenterX = (startX + endX) / 2
+      const wallCenterZ = (startZ + endZ) / 2
+      const toPieceX = piecePos[0] - wallCenterX
+      const toPieceZ = piecePos[2] - wallCenterZ
+      const side = (toPieceX * nx + toPieceZ * nz) >= 0 ? 1 : -1
+      return [nx * side, 0, nz * side]
+    }
+
+    // Check if it's a pre-built wall piece
+    const wallPiece = allPieces.get(attachedToId)
+    if (wallPiece) {
+      const wallType = wallPiece.type
+      const piecePos = piece.pos || [0, 0, 0]
+      const wallPos = wallPiece.pos || [0, 0, 0]
+      if (wallType === 'WALL_FRONT' || wallType === 'WALL_BACK') {
+        const side = piecePos[2] >= wallPos[2] ? 1 : -1
+        return [0, 0, side]
+      } else if (wallType === 'WALL_LEFT' || wallType === 'WALL_RIGHT') {
+        const side = piecePos[0] >= wallPos[0] ? 1 : -1
+        return [side, 0, 0]
+      }
+    }
+
+    return null
+  }
+
+  // Calculate rotation for decorative pieces on walls
+  // They lay flat against the wall, with their surface normal matching the wall's surface normal
+  const calculateWallRotation = () => {
+    if (!isDecorativeSnappable) {
+      return [config.rotationX || 0, piece.yaw || 0, 0]
+    }
+
+    let surfaceType = null
+    let normal = null
+
+    // Determine surface type and normal
+    if (isLocallyHeld && snapInfo) {
+      surfaceType = snapInfo.surfaceType
+      normal = snapInfo.normal
+    } else if (isSnappedPiece) {
+      surfaceType = piece.attachedTo === 'roof' ? 'roof' : 'wall'
+      normal = getWallNormal(piece.attachedTo)
+    }
+
+    // For roof or no snap, piece sits normally (no special rotation)
+    if (surfaceType !== 'wall') {
+      return [config.rotationX || 0, piece.yaw || 0, 0]
+    }
+
+    // For walls: use quaternion to align piece's Y-axis with the wall normal
+    // This makes the piece lay flat against the wall surface
+    if (normal && Array.isArray(normal) && normal.length >= 3) {
+      const wallNormal = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize()
+      const upVector = new THREE.Vector3(0, 1, 0)
+
+      // Create quaternion that rotates the up vector to align with the wall normal
+      const quaternion = new THREE.Quaternion()
+      quaternion.setFromUnitVectors(upVector, wallNormal)
+
+      // Convert to Euler angles
+      const euler = new THREE.Euler()
+      euler.setFromQuaternion(quaternion, 'XYZ')
+
+      return [euler.x, euler.y, euler.z]
+    }
+
+    // Fallback: use the yaw with a -90° pitch
+    const yaw = piece.yaw || 0
+    return [-Math.PI / 2, yaw, 0]
+  }
+
   // Rotation - apply piece yaw plus any config rotation
-  const rotation = [
-    config.rotationX || 0,
-    piece.yaw || 0,
-    0
-  ]
+  const rotation = calculateWallRotation()
 
   // Determine if piece can be interacted with
   const canInteract = !isHeldByOther

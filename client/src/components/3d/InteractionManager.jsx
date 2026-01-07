@@ -2,16 +2,16 @@ import { useRef, useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
-import { calculateSnapPosition, isSnappable } from '../../utils/snapping'
+import { calculateSnapPosition, isSnappable, isDecorativeSnappable } from '../../utils/snapping'
 import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
 
 // Constants from PRD
 const BUILD_SURFACE_SIZE = 10
 const ROTATION_SPEED = Math.PI / 8 // 22.5 degrees per press
 const DRAG_PLANE_Y = 0.1 // Slightly above surface
-const WINDOW_HEIGHT_STEP = 0.1 // How much scroll wheel adjusts window height
-const WINDOW_MIN_HEIGHT = 0.3 // Minimum window center height
-const WINDOW_MAX_HEIGHT = 1.3 // Maximum window center height (below wall top)
+const SNAP_HEIGHT_STEP = 0.1 // How much scroll wheel adjusts snap height
+const SNAP_MIN_HEIGHT = 0.1 // Minimum center height for snapped pieces
+const SNAP_MAX_HEIGHT = 1.3 // Maximum center height (below wall top)
 
 /**
  * InteractionManager - Handles all piece interactions
@@ -33,7 +33,7 @@ export default function InteractionManager() {
   const lastCursorUpdate = useRef(0)
   const isSnapped = useRef(false) // Track if piece is currently snapped
   const snappedToWallId = useRef(null) // Track which wall the piece is snapped to
-  const targetWindowHeight = useRef(0.75) // Target Y height for windows (adjustable with scroll)
+  const targetSnapHeight = useRef(0.75) // Target Y height for snapped pieces (adjustable with scroll)
 
   // Set up event listeners - use getState() to avoid stale closures
   useEffect(() => {
@@ -118,9 +118,10 @@ export default function InteractionManager() {
         // Apply snapping for release position
         let attachedTo = null
         if (heldPiece && isSnappable(heldPiece.type)) {
-          // For windows, use the adjustable target height
+          // For windows and decoratives, use the adjustable target height
           const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
-          const yForSnap = isWindow ? targetWindowHeight.current : clampedPos.y
+          const isDecorative = isDecorativeSnappable(heldPiece.type)
+          const yForSnap = (isWindow || isDecorative) ? targetSnapHeight.current : clampedPos.y
 
           const snapResult = calculateSnapPosition(
             heldPiece.type,
@@ -128,12 +129,13 @@ export default function InteractionManager() {
             finalYaw,
             state.pieces,
             heldPieceId,
-            state.walls
+            state.walls,
+            isDecorative ? scene : null // Pass scene for decorative roof snapping
           )
           if (snapResult.snapped) {
             finalPos = snapResult.position
             finalYaw = snapResult.yaw
-            attachedTo = snapResult.targetId // Track which wall it's attached to
+            attachedTo = snapResult.targetId // Track which wall/roof it's attached to
           }
         }
 
@@ -174,9 +176,10 @@ export default function InteractionManager() {
 
         // Check for snapping if this piece type can snap
         if (isSnappable(heldPiece.type)) {
-          // For windows, use the adjustable target height
+          // For windows and decoratives, use the adjustable target height
           const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
-          const yForSnap = isWindow ? targetWindowHeight.current : clampedPos.y
+          const isDecorative = isDecorativeSnappable(heldPiece.type)
+          const yForSnap = (isWindow || isDecorative) ? targetSnapHeight.current : clampedPos.y
 
           const snapResult = calculateSnapPosition(
             heldPiece.type,
@@ -184,7 +187,8 @@ export default function InteractionManager() {
             currentRotation.current,
             state.pieces,
             state.heldPieceId,
-            state.walls
+            state.walls,
+            isDecorative ? scene : null // Pass scene for decorative roof snapping
           )
 
           if (snapResult.snapped) {
@@ -193,13 +197,21 @@ export default function InteractionManager() {
             currentRotation.current = finalYaw // Update rotation to match snap
             isSnapped.current = true
             snappedToWallId.current = snapResult.targetId
+            // Store snap info for decorative piece orientation
+            state.setSnapInfo({
+              surfaceType: snapResult.surfaceType,
+              normal: snapResult.normal,
+              targetId: snapResult.targetId
+            })
           } else {
             isSnapped.current = false
             snappedToWallId.current = null
+            state.setSnapInfo(null)
           }
         } else {
           isSnapped.current = false
           snappedToWallId.current = null
+          state.setSnapInfo(null)
         }
 
         state.updatePieceTransform(state.heldPieceId, finalPos, finalYaw)
@@ -262,24 +274,26 @@ export default function InteractionManager() {
       if (!heldPiece) return
 
       const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
+      const isDecorative = isDecorativeSnappable(heldPiece.type)
 
-      // Handle window height adjustment with arrow keys when snapped
-      if (isSnapped.current && isWindow && (key === 'arrowup' || key === 'arrowdown')) {
-        const heightDelta = key === 'arrowup' ? WINDOW_HEIGHT_STEP : -WINDOW_HEIGHT_STEP
-        targetWindowHeight.current = Math.max(
-          WINDOW_MIN_HEIGHT,
-          Math.min(WINDOW_MAX_HEIGHT, targetWindowHeight.current + heightDelta)
+      // Handle height adjustment with arrow keys when snapped (windows and decoratives)
+      if (isSnapped.current && (isWindow || isDecorative) && (key === 'arrowup' || key === 'arrowdown')) {
+        const heightDelta = key === 'arrowup' ? SNAP_HEIGHT_STEP : -SNAP_HEIGHT_STEP
+        targetSnapHeight.current = Math.max(
+          SNAP_MIN_HEIGHT,
+          Math.min(SNAP_MAX_HEIGHT, targetSnapHeight.current + heightDelta)
         )
 
         // Trigger a re-snap with new height
         const clampedPos = heldPiece.pos
         const snapResult = calculateSnapPosition(
           heldPiece.type,
-          [clampedPos[0], targetWindowHeight.current, clampedPos[2]],
+          [clampedPos[0], targetSnapHeight.current, clampedPos[2]],
           currentRotation.current,
           state.pieces,
           state.heldPieceId,
-          state.walls
+          state.walls,
+          isDecorative ? scene : null
         )
 
         if (snapResult.snapped) {
@@ -345,24 +359,26 @@ export default function InteractionManager() {
       if (!heldPiece) return
 
       const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
+      const isDecorative = isDecorativeSnappable(heldPiece.type)
 
-      // When snapped and holding a window, scroll adjusts height instead of rotation
-      if (isSnapped.current && isWindow) {
-        const heightDelta = event.deltaY > 0 ? -WINDOW_HEIGHT_STEP : WINDOW_HEIGHT_STEP
-        targetWindowHeight.current = Math.max(
-          WINDOW_MIN_HEIGHT,
-          Math.min(WINDOW_MAX_HEIGHT, targetWindowHeight.current + heightDelta)
+      // When snapped and holding a window or decorative, scroll adjusts height
+      if (isSnapped.current && (isWindow || isDecorative)) {
+        const heightDelta = event.deltaY > 0 ? -SNAP_HEIGHT_STEP : SNAP_HEIGHT_STEP
+        targetSnapHeight.current = Math.max(
+          SNAP_MIN_HEIGHT,
+          Math.min(SNAP_MAX_HEIGHT, targetSnapHeight.current + heightDelta)
         )
 
         // Trigger a re-snap with new height by calling the snapping logic
         const clampedPos = heldPiece.pos
         const snapResult = calculateSnapPosition(
           heldPiece.type,
-          [clampedPos[0], targetWindowHeight.current, clampedPos[2]],
+          [clampedPos[0], targetSnapHeight.current, clampedPos[2]],
           currentRotation.current,
           state.pieces,
           state.heldPieceId,
-          state.walls
+          state.walls,
+          isDecorative ? scene : null
         )
 
         if (snapResult.snapped) {

@@ -18,6 +18,7 @@ export const useGameStore = create((set, get) => ({
   // ==================== PIECE STATE ====================
   pieces: new Map(), // Map<pieceId, PieceState>
   heldPieceId: null, // Currently held piece by local user
+  snapInfo: null, // Current snap info for held piece { surfaceType, normal, targetId }
   pieceCount: 0,
   maxPieces: 50,
 
@@ -61,7 +62,8 @@ export const useGameStore = create((set, get) => ({
       users: new Map(),
       pieces: new Map(),
       localUser: null,
-      heldPieceId: null
+      heldPieceId: null,
+      snapInfo: null
     })
   },
 
@@ -225,7 +227,7 @@ export const useGameStore = create((set, get) => ({
 
     try {
       const response = await socket.releasePiece(state.heldPieceId, pos, yaw, attachedTo)
-      set({ heldPieceId: null })
+      set({ heldPieceId: null, snapInfo: null })
       // Play snap sound if piece was snapped, otherwise release sound
       if (response.adjusted || attachedTo) {
         playGlobalSound(SoundType.SNAP)
@@ -251,6 +253,9 @@ export const useGameStore = create((set, get) => ({
     // Send to server (rate limited)
     socket.sendTransformUpdate(pieceId, pos, yaw)
   },
+
+  // Set snap info for held piece (used for decorative piece orientation)
+  setSnapInfo: (snapInfo) => set({ snapInfo }),
 
   deletePiece: async (pieceId) => {
     try {
