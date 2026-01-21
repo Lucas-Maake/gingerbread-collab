@@ -291,6 +291,12 @@
   opacity: 0.6;
 }
 
+.landing-error {
+  margin-top: var(--spacing-sm);
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
 /* Footer */
 .landing-footer {
   margin-top: var(--spacing-lg);

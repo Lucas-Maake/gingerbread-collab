@@ -37,7 +37,7 @@ export class RoomManager {
    * Create a new room
    */
   createRoom(roomId = null) {
-    const id = roomId || this.generateRoomCode()
+    const id = (roomId || this.generateRoomCode()).toUpperCase()
 
     if (this.rooms.has(id)) {
       return { error: 'ROOM_EXISTS', roomId: id }
@@ -75,12 +75,11 @@ export class RoomManager {
    * @param {string} previousUserId - Optional previous user ID for reconnection
    */
   joinRoom(roomId, socketId, userName = null, previousUserId = null) {
-    const roomResult = this.getOrCreateRoom(roomId)
-    if (roomResult.error) {
-      return roomResult
+    const room = this.rooms.get(roomId)
+    if (!room) {
+      return { error: 'ROOM_NOT_FOUND' }
     }
 
-    const room = roomResult.room
     let userResult
     let isReconnect = false
 
@@ -92,7 +91,7 @@ export class RoomManager {
       if (disconnectedUser) {
         const timeSinceDisconnect = Date.now() - disconnectedUser.disconnectTime
 
-        // Allow reconnection within grace period (30 seconds)
+        // Allow reconnection within grace period (5 minutes)
         if (timeSinceDisconnect < ROOM_CONFIG.RECONNECT_GRACE_PERIOD_MS) {
           // Reconnect the user
           userResult = room.reconnectUser(socketId, disconnectedUser.user)
@@ -140,7 +139,8 @@ export class RoomManager {
       return null
     }
 
-    const user = room.removeUser(socketId)
+    const leaveResult = room.removeUser(socketId)
+    const user = leaveResult ? leaveResult.user : null
     this.socketToRoom.delete(socketId)
 
     if (user) {
@@ -154,7 +154,13 @@ export class RoomManager {
       })
     }
 
-    return { room, user, roomId }
+    return {
+      room,
+      user,
+      roomId,
+      hostChanged: leaveResult ? leaveResult.hostChanged : false,
+      hostUserId: leaveResult ? leaveResult.hostUserId : null
+    }
   }
 
   /**

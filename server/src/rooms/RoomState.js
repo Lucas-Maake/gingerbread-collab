@@ -56,6 +56,7 @@ export class PieceState {
     this.heldBy = null
     this.spawnedBy = spawnedBy
     this.attachedTo = null // wallId this piece is snapped to (for windows/doors)
+    this.snapNormal = null // Surface normal when snapped [x, y, z] - for correct orientation
     this.version = 1
     this.updatedAt = Date.now()
     this.lastValidPos = [...position]
@@ -98,6 +99,11 @@ export class PieceState {
     this.version++
   }
 
+  setSnapNormal(normal) {
+    this.snapNormal = normal
+    this.version++
+  }
+
   toJSON() {
     return {
       pieceId: this.pieceId,
@@ -107,6 +113,7 @@ export class PieceState {
       heldBy: this.heldBy,
       spawnedBy: this.spawnedBy,
       attachedTo: this.attachedTo,
+      snapNormal: this.snapNormal,
       version: this.version
     }
   }
@@ -174,6 +181,7 @@ export class IcingState {
 export class RoomState {
   constructor(roomId) {
     this.roomId = roomId
+    this.hostUserId = null
     this.users = new Map() // Map<visibleId, UserState>
     this.socketToUser = new Map() // Map<socketId, visibleId>
     this.pieces = new Map() // Map<pieceId, PieceState>
@@ -221,6 +229,10 @@ export class RoomState {
     this.socketToUser.set(socketId, user.userId)
     this.lastActivityAt = Date.now()
 
+    if (!this.hostUserId) {
+      this.hostUserId = user.userId
+    }
+
     return { user }
   }
 
@@ -247,7 +259,14 @@ export class RoomState {
     this.socketToUser.delete(socketId)
     this.lastActivityAt = Date.now()
 
-    return user
+    let hostChanged = false
+    if (this.hostUserId === user.userId) {
+      const nextHost = this.users.values().next().value || null
+      this.hostUserId = nextHost ? nextHost.userId : null
+      hostChanged = true
+    }
+
+    return { user, hostChanged, hostUserId: this.hostUserId }
   }
 
   getUserBySocket(socketId) {
@@ -278,6 +297,10 @@ export class RoomState {
     this.users.set(previousUser.userId, previousUser)
     this.socketToUser.set(socketId, previousUser.userId)
     this.lastActivityAt = Date.now()
+
+    if (!this.hostUserId) {
+      this.hostUserId = previousUser.userId
+    }
 
     return { user: previousUser }
   }
@@ -349,7 +372,7 @@ export class RoomState {
     return { piece }
   }
 
-  releasePiece(pieceId, userId, finalPos, finalYaw, attachedTo = null) {
+  releasePiece(pieceId, userId, finalPos, finalYaw, attachedTo = null, snapNormal = null) {
     const piece = this.pieces.get(pieceId)
     if (!piece) {
       return { error: 'PIECE_NOT_FOUND' }
@@ -369,6 +392,7 @@ export class RoomState {
       piece.revertToLastValid()
       piece.release()
       piece.setAttachedTo(null)
+      piece.setSnapNormal(null)
       return { piece, adjusted: true, reason: 'OUT_OF_BOUNDS' }
     }
 
@@ -379,6 +403,7 @@ export class RoomState {
       piece.updateTransform(result.pos, finalYaw)
       piece.release()
       piece.setAttachedTo(attachedTo) // Track which wall this piece is attached to
+      piece.setSnapNormal(snapNormal) // Store the surface normal for orientation
       this.setOccupancy(piece)
       this.lastActivityAt = Date.now()
       return { piece, adjusted: result.adjusted }
@@ -387,6 +412,7 @@ export class RoomState {
       piece.revertToLastValid()
       piece.release()
       piece.setAttachedTo(null)
+      piece.setSnapNormal(null)
       this.setOccupancy(piece)
       return { piece, adjusted: true, reason: 'NO_VALID_POSITION' }
     }
@@ -458,7 +484,7 @@ export class RoomState {
         const halfWidth = BUILD_SURFACE.WIDTH / 2
         const halfDepth = BUILD_SURFACE.DEPTH / 2
         if (testX < -halfWidth || testX > halfWidth ||
-            testZ < -halfDepth || testZ > halfDepth) {
+          testZ < -halfDepth || testZ > halfDepth) {
           continue
         }
 
@@ -550,6 +576,20 @@ export class RoomState {
     return this.icing.get(icingId)
   }
 
+  // Reset room state (pieces, walls, icing, occupancy, undo stacks)
+  resetRoom() {
+    this.pieces.clear()
+    this.walls.clear()
+    this.icing.clear()
+    this.occupancy.clear()
+
+    for (const user of this.users.values()) {
+      user.undoStack = []
+    }
+
+    this.lastActivityAt = Date.now()
+  }
+
   // Chat management
   addChatMessage(userId, userName, userColor, message) {
     const chatMessage = {
@@ -580,6 +620,7 @@ export class RoomState {
   getSnapshot() {
     return {
       roomId: this.roomId,
+      hostUserId: this.hostUserId,
       users: Array.from(this.users.values()).map(u => u.toJSON()),
       pieces: Array.from(this.pieces.values()).map(p => p.toJSON()),
       walls: Array.from(this.walls.values()).map(w => w.toJSON()),

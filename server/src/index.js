@@ -82,6 +82,18 @@ app.get('/api/room/:roomId', (req, res) => {
   }
 })
 
+// API endpoint to create a new room
+app.post('/api/room', (req, res) => {
+  const result = roomManager.createRoom()
+  if (result.error) {
+    return res.status(409).json({ error: result.error })
+  }
+
+  return res.json({
+    roomId: result.room.roomId
+  })
+})
+
 // Serve static files in production
 if (isProduction) {
   const clientDistPath = path.join(__dirname, '../../client/dist')

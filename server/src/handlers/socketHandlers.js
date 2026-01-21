@@ -34,18 +34,19 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'INVALID_ROOM_CODE' })
     }
 
-    const result = roomManager.joinRoom(roomId.toUpperCase(), socketId, userName, previousUserId)
+    const normalizedRoomId = roomId.toUpperCase()
+    const result = roomManager.joinRoom(normalizedRoomId, socketId, userName, previousUserId)
 
     if (result.error) {
       return callback({ error: result.error })
     }
 
     // Join Socket.IO room for broadcasts
-    socket.join(roomId)
+    socket.join(normalizedRoomId)
 
     // Notify others in room (only if this is a new user, not a reconnect)
     if (!result.isReconnect) {
-      socket.to(roomId).emit('user_joined', {
+      socket.to(normalizedRoomId).emit('user_joined', {
         user: result.user.toJSON()
       })
     }
@@ -185,7 +186,7 @@ export function registerSocketHandlers(io, socket) {
 
   /**
    * Release a piece
-   * @param {Object} data - { pieceId: string, pos: [x, y, z], yaw: number, attachedTo?: string }
+   * @param {Object} data - { pieceId: string, pos: [x, y, z], yaw: number, attachedTo?: string, snapNormal?: [x, y, z] }
    */
   socket.on('release_piece', (data, callback) => {
     const room = roomManager.getRoomForSocket(socketId)
@@ -198,14 +199,14 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { pieceId, pos, yaw, attachedTo } = data
+    const { pieceId, pos, yaw, attachedTo, snapNormal } = data
     const piece = room.pieces.get(pieceId)
 
     // Store previous position for undo
     const prevPos = piece ? [...piece.pos] : null
     const prevYaw = piece ? piece.yaw : null
 
-    const result = room.releasePiece(pieceId, user.userId, pos, yaw, attachedTo)
+    const result = room.releasePiece(pieceId, user.userId, pos, yaw, attachedTo, snapNormal)
 
     if (result.error) {
       return callback({ error: result.error })
@@ -477,7 +478,7 @@ export function registerSocketHandlers(io, socket) {
 
     // Validate input
     if (!Array.isArray(start) || start.length !== 2 ||
-        !Array.isArray(end) || end.length !== 2) {
+      !Array.isArray(end) || end.length !== 2) {
       return callback({ error: 'INVALID_WALL_DATA' })
     }
 
@@ -668,8 +669,15 @@ export function registerSocketHandlers(io, socket) {
       // Notify others in room
       socket.to(result.roomId).emit('user_left', {
         userId: result.user.userId,
-        userName: result.user.name
+        userName: result.user.name,
+        hostUserId: result.hostUserId
       })
+
+      if (result.hostChanged) {
+        io.to(result.roomId).emit('host_changed', {
+          hostUserId: result.hostUserId
+        })
+      }
 
       // Release any held pieces is already done in leaveRoom
       // But we need to broadcast the releases
@@ -763,5 +771,36 @@ export function registerSocketHandlers(io, socket) {
     }
 
     callback({ success: true, messages: room.getChatHistory() })
+  })
+
+  // ==================== ROOM RESET ====================
+
+  /**
+   * Reset room (host only) - clears pieces, walls, and icing
+   */
+  socket.on('reset_room', (callback) => {
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    if (room.hostUserId !== user.userId) {
+      return callback({ error: 'NOT_HOST' })
+    }
+
+    room.resetRoom()
+    broadcastThrottler.cleanup(new Set())
+
+    io.to(room.roomId).emit('room_reset', {
+      snapshot: room.getSnapshot(),
+      resetBy: user.userId
+    })
+
+    callback({ success: true })
   })
 }
