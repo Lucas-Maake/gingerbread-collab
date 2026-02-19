@@ -63,7 +63,7 @@ export class TokenBucket {
  */
 export class RateLimiter {
   constructor() {
-    // Map<socketId, { cursor: TokenBucket, transform: TokenBucket }>
+    // Map<socketId, Record<string, TokenBucket>>
     this.buckets = new Map()
   }
 
@@ -71,16 +71,22 @@ export class RateLimiter {
    * Initialize buckets for a new connection
    */
   addConnection(socketId, config) {
-    this.buckets.set(socketId, {
-      cursor: new TokenBucket(
-        config.cursor.TOKENS_PER_SECOND,
-        config.cursor.BURST_CAPACITY
-      ),
-      transform: new TokenBucket(
-        config.transform.TOKENS_PER_SECOND,
-        config.transform.BURST_CAPACITY
+    const eventBuckets = {}
+
+    for (const [eventKey, eventConfig] of Object.entries(config || {})) {
+      if (!eventConfig ||
+        !Number.isFinite(eventConfig.TOKENS_PER_SECOND) ||
+        !Number.isFinite(eventConfig.BURST_CAPACITY)) {
+        continue
+      }
+
+      eventBuckets[eventKey] = new TokenBucket(
+        eventConfig.TOKENS_PER_SECOND,
+        eventConfig.BURST_CAPACITY
       )
-    })
+    }
+
+    this.buckets.set(socketId, eventBuckets)
   }
 
   /**
@@ -94,30 +100,44 @@ export class RateLimiter {
    * Check if cursor update is allowed
    */
   allowCursorUpdate(socketId) {
-    const bucket = this.buckets.get(socketId)
-    if (!bucket) return false
-    return bucket.cursor.consume()
+    return this.allow(socketId, 'cursor')
   }
 
   /**
    * Check if transform update is allowed
    */
   allowTransformUpdate(socketId) {
-    const bucket = this.buckets.get(socketId)
-    if (!bucket) return false
-    return bucket.transform.consume()
+    return this.allow(socketId, 'transform')
+  }
+
+  /**
+   * Check if a named event is allowed
+   */
+  allow(socketId, eventKey) {
+    const connectionBuckets = this.buckets.get(socketId)
+    if (!connectionBuckets) return false
+
+    const bucket = connectionBuckets[eventKey]
+    if (!bucket) {
+      return true
+    }
+
+    return bucket.consume()
   }
 
   /**
    * Get rate limit status for debugging
    */
   getStatus(socketId) {
-    const bucket = this.buckets.get(socketId)
-    if (!bucket) return null
-    return {
-      cursorTokens: bucket.cursor.getTokens(),
-      transformTokens: bucket.transform.getTokens()
+    const connectionBuckets = this.buckets.get(socketId)
+    if (!connectionBuckets) return null
+
+    const status = {}
+    for (const [eventKey, bucket] of Object.entries(connectionBuckets)) {
+      status[`${eventKey}Tokens`] = bucket.getTokens()
     }
+
+    return status
   }
 }
 

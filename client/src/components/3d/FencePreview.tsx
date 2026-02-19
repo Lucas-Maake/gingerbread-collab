@@ -4,15 +4,15 @@ import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
 import { snapPointToGrid } from '../../utils/gridSnap'
 
-const PREVIEW_COLOR = '#8B4513'
-const WALL_HEIGHT = 1.5
-const WALL_THICKNESS = 0.15
+const PREVIEW_COLOR = '#C4884A'
+const RAIL_HEIGHT = 0.24
+const RAIL_THICKNESS = 0.035
+const RAIL_DEPTH = 0.035
 
 /**
- * Ghost preview of wall being drawn
- * Shows a line from start point to cursor position
+ * Ghost preview of fence line being drawn
  */
-export default function WallPreview() {
+export default function FencePreview() {
     const { camera, gl } = useThree()
     const meshRef = useRef<THREE.Mesh>(null)
     const mouseRef = useRef(new THREE.Vector2())
@@ -21,22 +21,20 @@ export default function WallPreview() {
     const intersectPoint = useRef(new THREE.Vector3())
 
     const buildMode = useGameStore((state) => state.buildMode)
-    const wallDrawingStartPoint = useGameStore((state) => state.wallDrawingStartPoint)
+    const fenceDrawingStartPoint = useGameStore((state) => state.fenceDrawingStartPoint)
     const gridSnapEnabled = useGameStore((state) => state.gridSnapEnabled)
     const gridSize = useGameStore((state) => state.gridSize)
 
-    // Track mouse position and update preview
     useFrame(() => {
-        if (buildMode !== 'wall' || !wallDrawingStartPoint || !meshRef.current) {
+        if (buildMode !== 'fence' || !fenceDrawingStartPoint || !meshRef.current) {
             if (meshRef.current) {
                 meshRef.current.visible = false
             }
             return
         }
 
-        // Get mouse position from DOM events (stored by WallDrawingManager)
-        const canvas = gl.domElement as HTMLCanvasElement & { __wallPreviewMouse?: { x: number, y: number } }
-        const mouseState = canvas.__wallPreviewMouse
+        const canvas = gl.domElement as HTMLCanvasElement & { __fencePreviewMouse?: { x: number, y: number } }
+        const mouseState = canvas.__fencePreviewMouse
         if (!mouseState) {
             meshRef.current.visible = false
             return
@@ -45,7 +43,6 @@ export default function WallPreview() {
         mouseRef.current.x = mouseState.x
         mouseRef.current.y = mouseState.y
 
-        // Raycast to ground plane
         raycaster.current.setFromCamera(mouseRef.current, camera)
         const hit = raycaster.current.ray.intersectPlane(dragPlane.current, intersectPoint.current)
         if (!hit) {
@@ -56,45 +53,39 @@ export default function WallPreview() {
         let endX = intersectPoint.current.x
         let endZ = intersectPoint.current.z
 
-        // Apply grid snap
         if (gridSnapEnabled) {
             const snapped = snapPointToGrid([endX, endZ], gridSize)
             endX = snapped[0]
             endZ = snapped[1]
         }
 
-        const [startX, startZ] = wallDrawingStartPoint
-
-        // Calculate wall dimensions
+        const [startX, startZ] = fenceDrawingStartPoint
         const dx = endX - startX
         const dz = endZ - startZ
         const length = Math.sqrt(dx * dx + dz * dz)
 
-        // Hide if too short
-        if (length < 0.1) {
+        if (length < 0.02) {
             meshRef.current.visible = false
             return
         }
 
-        // Position and rotate the preview
         meshRef.current.position.set(
             (startX + endX) / 2,
-            WALL_HEIGHT / 2,
+            RAIL_HEIGHT,
             (startZ + endZ) / 2
         )
         meshRef.current.rotation.set(0, -Math.atan2(dz, dx), 0)
-        meshRef.current.scale.set(length, WALL_HEIGHT, WALL_THICKNESS)
+        meshRef.current.scale.set(length, RAIL_THICKNESS, RAIL_DEPTH)
         meshRef.current.visible = true
     })
 
-    // Always render the mesh but control visibility in useFrame
     return (
         <mesh ref={meshRef} visible={false}>
             <boxGeometry args={[1, 1, 1]} />
             <meshStandardMaterial
                 color={PREVIEW_COLOR}
                 transparent
-                opacity={0.5}
+                opacity={0.45}
                 depthWrite={false}
             />
         </mesh>

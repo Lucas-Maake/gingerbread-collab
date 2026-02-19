@@ -2,9 +2,10 @@ import { useRef, useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
-import { calculateSnapPosition, isSnappable, isDecorativeSnappable } from '../../utils/snapping'
+import { calculateSnapPosition, calculateSnapFromSurfaceHit, isSnappable, isDecorativeSnappable, isSnapTarget } from '../../utils/snapping'
 import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
 import { BUILD_SURFACE, INTERACTION, SNAP } from '../../constants/buildConfig'
+import type { SnapResult, SurfaceType } from '../../types'
 
 // Use centralized constants
 const BUILD_SURFACE_SIZE = BUILD_SURFACE.SIZE
@@ -23,6 +24,8 @@ const SNAP_MAX_HEIGHT = SNAP.MAX_HEIGHT
  */
 export default function InteractionManager() {
     const { camera, gl, scene } = useThree()
+    const pieceCount = useGameStore((state) => state.pieceCount)
+    const wallCount = useGameStore((state) => state.walls.size)
 
     // Refs for interaction state
     const raycaster = useRef(new THREE.Raycaster())
@@ -35,6 +38,46 @@ export default function InteractionManager() {
     const isSnapped = useRef(false) // Track if piece is currently snapped
     const snappedToWallId = useRef<string | null>(null) // Track which wall the piece is snapped to
     const targetSnapHeight = useRef(0.75) // Target Y height for snapped pieces (adjustable with scroll)
+    const pieceMeshesRef = useRef<THREE.Object3D[]>([])
+    const wallMeshesRef = useRef<THREE.Object3D[]>([])
+    const roofMeshesRef = useRef<THREE.Object3D[]>([])
+    const buildSurfaceMeshesRef = useRef<THREE.Object3D[]>([])
+
+    // Cache interactable meshes to avoid scene traversal on each pointer event.
+    useEffect(() => {
+        const pieceMeshes: THREE.Object3D[] = []
+        const wallMeshes: THREE.Object3D[] = []
+        const roofMeshes: THREE.Object3D[] = []
+        const buildSurfaceMeshes: THREE.Object3D[] = []
+
+        scene.traverse((child) => {
+            if (!(child as THREE.Mesh).isMesh) return
+
+            if (child.userData?.pieceId) {
+                pieceMeshes.push(child)
+                return
+            }
+
+            if (child.userData?.wallId) {
+                wallMeshes.push(child)
+                return
+            }
+
+            if (child.parent?.name === 'auto-roofs') {
+                roofMeshes.push(child)
+                return
+            }
+
+            if (child.name === 'build-surface' || child.userData?.isBuildSurface) {
+                buildSurfaceMeshes.push(child)
+            }
+        })
+
+        pieceMeshesRef.current = pieceMeshes
+        wallMeshesRef.current = wallMeshes
+        roofMeshesRef.current = roofMeshes
+        buildSurfaceMeshesRef.current = buildSurfaceMeshes
+    }, [scene, pieceCount, wallCount])
 
     // Set up event listeners - use getState() to avoid stale closures
     useEffect(() => {
@@ -51,15 +94,11 @@ export default function InteractionManager() {
         const raycastPieces = () => {
             raycaster.current.setFromCamera(mouse.current, camera)
 
-            // Find all meshes with pieceId userData
-            const pieceMeshes: THREE.Object3D[] = []
-            scene.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh && child.userData.pieceId) {
-                    pieceMeshes.push(child)
-                }
-            })
+            if (pieceMeshesRef.current.length === 0) {
+                return null
+            }
 
-            const intersects = raycaster.current.intersectObjects(pieceMeshes, false)
+            const intersects = raycaster.current.intersectObjects(pieceMeshesRef.current, false)
             return intersects.length > 0 ? intersects[0] : null
         }
 
@@ -70,6 +109,71 @@ export default function InteractionManager() {
             return intersectPoint.current.clone()
         }
 
+        const raycastToSurface = (state: ReturnType<typeof useGameStore.getState>) => {
+            raycaster.current.setFromCamera(mouse.current, camera)
+
+            const heldPieceId = state.heldPieceId
+
+            const snapTargetMeshes = pieceMeshesRef.current.filter((child) => {
+                const pieceId = child.userData?.pieceId
+                if (!pieceId || pieceId === heldPieceId) {
+                    return false
+                }
+
+                const piece = state.pieces.get(pieceId)
+                return Boolean(piece && isSnapTarget(piece.type))
+            })
+
+            const surfaces: THREE.Object3D[] = [
+                ...wallMeshesRef.current,
+                ...roofMeshesRef.current,
+                ...buildSurfaceMeshesRef.current,
+                ...snapTargetMeshes
+            ]
+
+            if (surfaces.length === 0) return null
+
+            const intersects = raycaster.current.intersectObjects(surfaces, false)
+            if (intersects.length === 0) return null
+
+            const hit = intersects[0]
+            const point = hit.point.clone()
+            const normal = hit.face?.normal?.clone() || new THREE.Vector3(0, 1, 0)
+            const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object!.matrixWorld)
+            normal.applyMatrix3(normalMatrix).normalize()
+
+            let surfaceType: SurfaceType = null
+            let targetId: string | null = null
+
+            if (hit.object.userData?.wallId) {
+                surfaceType = 'wall'
+                targetId = hit.object.userData.wallId
+            } else if (hit.object.parent?.name === 'auto-roofs') {
+                surfaceType = 'roof'
+                targetId = 'roof'
+            } else if (hit.object.userData?.pieceId) {
+                surfaceType = 'wall'
+                targetId = hit.object.userData.pieceId
+            } else if (hit.object.name === 'build-surface' || hit.object.userData?.isBuildSurface) {
+                if (normal.y < 0.9) return null
+                surfaceType = 'ground'
+                targetId = null
+            }
+
+            if (!surfaceType) return null
+
+            if (surfaceType === 'roof' && normal.y < 0) {
+                normal.negate()
+            }
+
+            return {
+                point,
+                normal,
+                surfaceType,
+                targetId
+            }
+        }
+
         // Helper: Clamp position to build surface bounds
         const clampToBounds = (position: THREE.Vector3) => {
             const halfSize = BUILD_SURFACE_SIZE / 2
@@ -78,6 +182,18 @@ export default function InteractionManager() {
                 DRAG_PLANE_Y,
                 THREE.MathUtils.clamp(position.z, -halfSize, halfSize)
             )
+        }
+
+        const getSnapOptions = (
+            state: ReturnType<typeof useGameStore.getState>,
+            heldPiece?: { attachedTo?: string | null }
+        ) => {
+            const snapSurface = state.snapInfo?.surfaceType
+            const preferredSnapSurface = (snapSurface === 'wall' || snapSurface === 'roof') ? snapSurface : null
+            const attachedSurface = heldPiece?.attachedTo === 'roof' ? 'roof' : heldPiece?.attachedTo ? 'wall' : null
+            const preferSurface = preferredSnapSurface ?? attachedSurface
+            const wallSnapDistance = preferSurface === 'wall' ? SNAP.DISTANCE * 1.5 : SNAP.DISTANCE
+            return { preferSurface, wallSnapDistance }
         }
 
         // Handle mouse down - release piece when clicking on empty space
@@ -111,6 +227,7 @@ export default function InteractionManager() {
                 const heldPiece = state.pieces.get(heldPieceId)
 
                 // Clicked on empty space - release the piece here
+                const surfaceHit = raycastToSurface(state)
                 const point = raycastToPlane()
                 const clampedPos = clampToBounds(point)
                 let finalPos: [number, number, number] = [clampedPos.x, clampedPos.y, clampedPos.z]
@@ -124,16 +241,37 @@ export default function InteractionManager() {
                     const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
                     const isDecorative = isDecorativeSnappable(heldPiece.type)
                     const yForSnap = (isWindow || isDecorative) ? targetSnapHeight.current : clampedPos.y
+                    const snapOptions = getSnapOptions(state, heldPiece)
 
-                    const snapResult = calculateSnapPosition(
-                        heldPiece.type,
-                        [clampedPos.x, yForSnap, clampedPos.z],
-                        finalYaw,
-                        state.pieces,
-                        heldPieceId,
-                        state.walls,
-                        isDecorative ? scene : null // Pass scene for decorative roof snapping
-                    )
+                    let snapResult: SnapResult | null = null
+                    if (surfaceHit && (surfaceHit.surfaceType === 'wall' || surfaceHit.surfaceType === 'roof')) {
+                        snapResult = calculateSnapFromSurfaceHit(
+                            heldPiece.type,
+                            [surfaceHit.point.x, surfaceHit.point.y, surfaceHit.point.z],
+                            [surfaceHit.normal.x, surfaceHit.normal.y, surfaceHit.normal.z],
+                            surfaceHit.surfaceType,
+                            surfaceHit.targetId,
+                            state.pieces,
+                            state.walls,
+                            snapOptions
+                        )
+                    }
+
+                    if (!snapResult || !snapResult.snapped) {
+                        if (!surfaceHit || surfaceHit.surfaceType === 'ground') {
+                            snapResult = calculateSnapPosition(
+                                heldPiece.type,
+                                [clampedPos.x, yForSnap, clampedPos.z],
+                                finalYaw,
+                                state.pieces,
+                                heldPieceId,
+                                state.walls,
+                                isDecorative ? scene : null, // Pass scene for decorative roof snapping
+                                snapOptions
+                            )
+                        }
+                    }
+
                     if (snapResult.snapped) {
                         finalPos = snapResult.position
                         finalYaw = snapResult.yaw
@@ -173,6 +311,7 @@ export default function InteractionManager() {
                 const heldPiece = state.pieces.get(state.heldPieceId)
                 if (!heldPiece) return
 
+                const surfaceHit = raycastToSurface(state)
                 const clampedPos = clampToBounds(point)
                 let finalPos: [number, number, number] = [clampedPos.x, clampedPos.y, clampedPos.z]
                 let finalYaw = currentRotation.current
@@ -183,16 +322,36 @@ export default function InteractionManager() {
                     const isWindow = heldPiece.type === 'WINDOW_SMALL' || heldPiece.type === 'WINDOW_LARGE'
                     const isDecorative = isDecorativeSnappable(heldPiece.type)
                     const yForSnap = (isWindow || isDecorative) ? targetSnapHeight.current : clampedPos.y
+                    const snapOptions = getSnapOptions(state, heldPiece)
 
-                    const snapResult = calculateSnapPosition(
-                        heldPiece.type,
-                        [clampedPos.x, yForSnap, clampedPos.z],
-                        currentRotation.current,
-                        state.pieces,
-                        state.heldPieceId,
-                        state.walls,
-                        isDecorative ? scene : null // Pass scene for decorative roof snapping
-                    )
+                    let snapResult: SnapResult | null = null
+                    if (surfaceHit && (surfaceHit.surfaceType === 'wall' || surfaceHit.surfaceType === 'roof')) {
+                        snapResult = calculateSnapFromSurfaceHit(
+                            heldPiece.type,
+                            [surfaceHit.point.x, surfaceHit.point.y, surfaceHit.point.z],
+                            [surfaceHit.normal.x, surfaceHit.normal.y, surfaceHit.normal.z],
+                            surfaceHit.surfaceType,
+                            surfaceHit.targetId,
+                            state.pieces,
+                            state.walls,
+                            snapOptions
+                        )
+                    }
+
+                    if (!snapResult || !snapResult.snapped) {
+                        if (!surfaceHit || surfaceHit.surfaceType === 'ground') {
+                            snapResult = calculateSnapPosition(
+                                heldPiece.type,
+                                [clampedPos.x, yForSnap, clampedPos.z],
+                                currentRotation.current,
+                                state.pieces,
+                                state.heldPieceId,
+                                state.walls,
+                                isDecorative ? scene : null, // Pass scene for decorative roof snapping
+                                snapOptions
+                            )
+                        }
+                    }
 
                     if (snapResult.snapped) {
                         finalPos = snapResult.position
@@ -259,6 +418,9 @@ export default function InteractionManager() {
                     case 'w':
                         state.setBuildMode('wall')
                         return
+                    case 'f':
+                        state.setBuildMode('fence')
+                        return
                     case 'i':
                         state.setBuildMode('icing')
                         return
@@ -299,7 +461,8 @@ export default function InteractionManager() {
                     state.pieces,
                     state.heldPieceId,
                     state.walls,
-                    isDecorative ? scene : null
+                    isDecorative ? scene : null,
+                    getSnapOptions(state, heldPiece)
                 )
 
                 if (snapResult.snapped) {
@@ -324,7 +487,14 @@ export default function InteractionManager() {
                 case 'escape':
                     // Cancel - release piece at current position
                     if (heldPiece && heldPiece.pos) {
-                        state.releasePiece(heldPiece.pos, currentRotation.current, snappedToWallId.current)
+                        const currentSnapInfo = state.snapInfo
+                        const attachedTo = isSnapped.current
+                            ? (snappedToWallId.current || currentSnapInfo?.targetId || heldPiece.attachedTo || null)
+                            : null
+                        const snapNormal = isSnapped.current
+                            ? (currentSnapInfo?.normal || heldPiece.snapNormal || null)
+                            : null
+                        state.releasePiece(heldPiece.pos, currentRotation.current, attachedTo, snapNormal)
                         isDragging.current = false
                         isSnapped.current = false
                         snappedToWallId.current = null
@@ -386,7 +556,8 @@ export default function InteractionManager() {
                     state.pieces,
                     state.heldPieceId,
                     state.walls,
-                    isDecorative ? scene : null
+                    isDecorative ? scene : null,
+                    getSnapOptions(state, heldPiece)
                 )
 
                 if (snapResult.snapped) {
@@ -441,9 +612,22 @@ export default function InteractionManager() {
                 if (piece) {
                     currentRotation.current = piece.yaw || 0
                     isDragging.current = true
+                    snappedToWallId.current = piece.attachedTo || null
+                    isSnapped.current = piece.attachedTo !== null
+
+                    const isWindow = piece.type === 'WINDOW_SMALL' || piece.type === 'WINDOW_LARGE'
+                    const isDecorative = isDecorativeSnappable(piece.type)
+                    if ((isWindow || isDecorative) && piece.pos) {
+                        targetSnapHeight.current = Math.max(
+                            SNAP_MIN_HEIGHT,
+                            Math.min(SNAP_MAX_HEIGHT, piece.pos[1])
+                        )
+                    }
                 }
             } else if (!state.heldPieceId && prevState.heldPieceId) {
                 isDragging.current = false
+                isSnapped.current = false
+                snappedToWallId.current = null
             }
         })
 

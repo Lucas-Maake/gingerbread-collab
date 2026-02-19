@@ -10,8 +10,12 @@ export default function GridOverlay() {
     const gridSize = useGameStore((state) => state.gridSize)
     const buildMode = useGameStore((state) => state.buildMode)
 
-    // Only show grid when snap is enabled and in wall/icing mode
-    const showGrid = gridSnapEnabled && (buildMode === 'wall' || buildMode === 'icing')
+    // Only show grid when snap is enabled and in a drawing mode
+    const showGrid = gridSnapEnabled && (
+        buildMode === 'wall' ||
+        buildMode === 'fence' ||
+        buildMode === 'icing'
+    )
 
     const gridGeometry = useMemo(() => {
         if (!showGrid) return null

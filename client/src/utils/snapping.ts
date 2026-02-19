@@ -70,6 +70,127 @@ export function isSnapTarget(pieceType: PieceType): boolean {
     return SNAP_TARGET_PIECES.includes(pieceType)
 }
 
+interface SnapOptions {
+    preferSurface?: 'wall' | 'roof' | null
+    wallSnapDistance?: number
+}
+
+/**
+ * Calculate snap position from a direct surface hit (raycast).
+ * This keeps placement aligned to the cursor's hit point on walls/roofs.
+ */
+export function calculateSnapFromSurfaceHit(
+    pieceType: PieceType,
+    hitPoint: Position,
+    hitNormal: Normal,
+    surfaceType: 'wall' | 'roof',
+    surfaceId: string | null,
+    allPieces: Map<string, PieceState>,
+    allWalls: Map<string, WallState>,
+    options: SnapOptions = {}
+): SnapResult {
+    if (!isSnappable(pieceType)) {
+        return { snapped: false, position: hitPoint, yaw: 0, pitch: 0, normal: null, targetId: null, surfaceType: null }
+    }
+
+    const pieceSize = getPieceSize(pieceType)
+    if (!pieceSize) {
+        return { snapped: false, position: hitPoint, yaw: 0, pitch: 0, normal: null, targetId: null, surfaceType: null }
+    }
+
+    const wallSnapDistance = options.wallSnapDistance ?? SNAP.DISTANCE
+
+    if (surfaceType === 'roof') {
+        if (!isDecorativeSnappable(pieceType)) {
+            return { snapped: false, position: hitPoint, yaw: 0, pitch: 0, normal: null, targetId: null, surfaceType: null }
+        }
+
+        const normalVec = new THREE.Vector3(hitNormal[0], hitNormal[1], hitNormal[2]).normalize()
+        if (normalVec.y < 0) {
+            normalVec.negate()
+        }
+
+        const isRoofOnly = isRoofOnlyPiece(pieceType)
+        const surfaceOffset = pieceSize.height / 2 + 0.02
+        const offsetVec = isRoofOnly ? new THREE.Vector3(0, 1, 0) : normalVec
+        const snapPos: Position = [
+            hitPoint[0] + offsetVec.x * surfaceOffset,
+            hitPoint[1] + offsetVec.y * surfaceOffset,
+            hitPoint[2] + offsetVec.z * surfaceOffset
+        ]
+
+        return {
+            snapped: true,
+            position: snapPos,
+            yaw: 0,
+            pitch: 0,
+            normal: [normalVec.x, normalVec.y, normalVec.z],
+            targetId: 'roof',
+            surfaceType: 'roof'
+        }
+    }
+
+    if (surfaceType === 'wall') {
+        if (!canSnapToWalls(pieceType)) {
+            return { snapped: false, position: hitPoint, yaw: 0, pitch: 0, normal: null, targetId: null, surfaceType: null }
+        }
+
+        if (surfaceId && allWalls.has(surfaceId)) {
+            const wall = allWalls.get(surfaceId)
+            if (!wall) {
+                return { snapped: false, position: hitPoint, yaw: 0, pitch: 0, normal: null, targetId: null, surfaceType: null }
+            }
+
+            const snapResult = calculateDrawnWallSnap(pieceType, hitPoint, wall, pieceSize, wallSnapDistance)
+            if (!snapResult) {
+                return { snapped: false, position: hitPoint, yaw: 0, pitch: 0, normal: null, targetId: null, surfaceType: null }
+            }
+
+            return {
+                snapped: true,
+                position: snapResult.position,
+                yaw: snapResult.yaw,
+                pitch: 0,
+                normal: snapResult.normal || null,
+                targetId: surfaceId,
+                surfaceType: 'wall'
+            }
+        }
+
+        if (surfaceId) {
+            const wallPiece = allPieces.get(surfaceId)
+            if (wallPiece && isSnapTarget(wallPiece.type)) {
+                const wallSize = getPieceSize(wallPiece.type)
+                if (wallSize) {
+                    const snapResult = calculateWallPieceSnap(
+                        pieceType,
+                        hitPoint,
+                        wallPiece.type,
+                        wallPiece.pos,
+                        wallPiece.yaw || 0,
+                        wallSize,
+                        pieceSize,
+                        wallSnapDistance
+                    )
+                    if (snapResult) {
+                        return {
+                            snapped: true,
+                            position: snapResult.position,
+                            yaw: snapResult.yaw,
+                            pitch: 0,
+                            normal: snapResult.normal || null,
+                            targetId: surfaceId,
+                            surfaceType: 'wall'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return { snapped: false, position: hitPoint, yaw: 0, pitch: 0, normal: null, targetId: null, surfaceType: null }
+}
+
 /**
  * Calculate snap position for a piece relative to walls and roofs
  */
@@ -80,7 +201,8 @@ export function calculateSnapPosition(
     allPieces: Map<string, PieceState>,
     excludePieceId: string,
     allWalls: Map<string, WallState> = new Map(),
-    scene: THREE.Scene | null = null
+    scene: THREE.Scene | null = null,
+    options: SnapOptions = {}
 ): SnapResult {
     if (!isSnappable(pieceType)) {
         return { snapped: false, position: piecePos, yaw: pieceYaw, pitch: 0, normal: null, targetId: null, surfaceType: null }
@@ -91,13 +213,16 @@ export function calculateSnapPosition(
         return { snapped: false, position: piecePos, yaw: pieceYaw, pitch: 0, normal: null, targetId: null, surfaceType: null }
     }
 
+    const preferSurface = options.preferSurface ?? null
+    const wallSnapDistance = options.wallSnapDistance ?? SNAP.DISTANCE
     let closestSnap: SnapResult | null = null
-    let closestDistance: number = SNAP.DISTANCE
+    let closestDistance = Number.POSITIVE_INFINITY
     const isDecorative = isDecorativeSnappable(pieceType)
     const isRoofOnly = isRoofOnlyPiece(pieceType)
+    const canSnapWall = canSnapToWalls(pieceType)
 
     // Skip wall checks for roof-only pieces (like chimney)
-    if (!isRoofOnly) {
+    if (!isRoofOnly && canSnapWall) {
         // Check each pre-built wall piece
         for (const [id, piece] of allPieces.entries()) {
             if (id === excludePieceId) continue
@@ -116,7 +241,7 @@ export function calculateSnapPosition(
             const horizontalDist = Math.sqrt(dx * dx + dz * dz)
 
             // Skip if too far away
-            if (horizontalDist > SNAP.DISTANCE + Math.max(wallSize.width, wallSize.depth)) {
+            if (horizontalDist > wallSnapDistance + Math.max(wallSize.width, wallSize.depth)) {
                 continue
             }
 
@@ -128,7 +253,8 @@ export function calculateSnapPosition(
                 wallPos,
                 wallYaw,
                 wallSize,
-                pieceSize
+                pieceSize,
+                wallSnapDistance
             )
 
             if (snapResult && snapResult.distance < closestDistance) {
@@ -151,7 +277,8 @@ export function calculateSnapPosition(
                 pieceType,
                 piecePos,
                 wall,
-                pieceSize
+                pieceSize,
+                wallSnapDistance
             )
 
             if (snapResult && snapResult.distance < closestDistance) {
@@ -170,24 +297,45 @@ export function calculateSnapPosition(
     } // End of wall checks (skipped for roof-only pieces)
 
     // Check roof surfaces for decorative pieces (if scene provided)
+    let roofSnap: SnapResult | null = null
     if (isDecorative && scene) {
-        const roofSnap = calculateRoofSnap(pieceType, piecePos, pieceSize, scene)
-        if (roofSnap && roofSnap.distance < closestDistance) {
-            closestDistance = roofSnap.distance as number
-            closestSnap = {
+        const roofSnapResult = calculateRoofSnap(pieceType, piecePos, pieceSize, scene)
+        if (roofSnapResult) {
+            roofSnap = {
                 snapped: true,
-                position: roofSnap.position,
-                yaw: roofSnap.yaw,
+                position: roofSnapResult.position,
+                yaw: roofSnapResult.yaw,
                 pitch: 0,
-                normal: roofSnap.normal || [0, 1, 0],
+                normal: roofSnapResult.normal || [0, 1, 0],
                 targetId: 'roof',
                 surfaceType: 'roof'
             }
         }
     }
 
+    if (preferSurface === 'roof' && roofSnap) {
+        return roofSnap
+    }
+
+    if (preferSurface === 'wall' && closestSnap) {
+        return closestSnap
+    }
+
+    if (roofSnap && closestSnap) {
+        // Prefer roof when available, but allow wall if the piece is very close to it.
+        const wallPriorityDistance = wallSnapDistance * 0.4
+        if (closestDistance <= wallPriorityDistance) {
+            return closestSnap
+        }
+        return roofSnap
+    }
+
     if (closestSnap) {
         return closestSnap
+    }
+
+    if (roofSnap) {
+        return roofSnap
     }
 
     return { snapped: false, position: piecePos, yaw: pieceYaw, pitch: 0, normal: null, targetId: null, surfaceType: null }
@@ -210,7 +358,8 @@ function calculateWallPieceSnap(
     wallPos: Position,
     _wallYaw: number,
     wallSize: PieceSize,
-    pieceSize: PieceSize
+    pieceSize: PieceSize,
+    snapDistance: number
 ): SnapMatch | null {
     // Wall thickness
     const wallThickness = wallSize.axis === 'z' ? wallSize.depth : wallSize.width
@@ -230,7 +379,7 @@ function calculateWallPieceSnap(
         const dz = piecePos[2] - wallPos[2]
 
         // Check if within wall width bounds (with some margin)
-        if (Math.abs(dx) > wallSize.width / 2 + SNAP.DISTANCE) {
+        if (Math.abs(dx) > wallSize.width / 2 + snapDistance) {
             return null
         }
 
@@ -238,7 +387,7 @@ function calculateWallPieceSnap(
         const distToWallCenter = Math.abs(dz)
 
         // Check if close enough to snap
-        if (distToWallCenter < wallThickness / 2 + SNAP.DISTANCE) {
+        if (distToWallCenter < wallThickness / 2 + snapDistance) {
             // Determine which side to snap to based on approach direction
             const side = dz >= 0 ? 1 : -1
 
@@ -278,7 +427,7 @@ function calculateWallPieceSnap(
         const dz = piecePos[2] - wallPos[2]
 
         // Check if within wall depth bounds (with some margin)
-        if (Math.abs(dz) > wallSize.depth / 2 + SNAP.DISTANCE) {
+        if (Math.abs(dz) > wallSize.depth / 2 + snapDistance) {
             return null
         }
 
@@ -286,7 +435,7 @@ function calculateWallPieceSnap(
         const distToWallCenter = Math.abs(dx)
 
         // Check if close enough to snap
-        if (distToWallCenter < wallThickness / 2 + SNAP.DISTANCE) {
+        if (distToWallCenter < wallThickness / 2 + snapDistance) {
             // Determine which side to snap to
             const side = dx >= 0 ? 1 : -1
 
@@ -331,7 +480,8 @@ function calculateDrawnWallSnap(
     pieceType: PieceType,
     piecePos: Position,
     wall: WallState,
-    pieceSize: PieceSize
+    pieceSize: PieceSize,
+    snapDistance: number
 ): SnapMatch | null {
     const [startX, startZ] = wall.start
     const [endX, endZ] = wall.end
@@ -381,7 +531,7 @@ function calculateDrawnWallSnap(
     const distToLine = Math.abs(perpDist)
 
     // Check if close enough
-    if (distToLine > SNAP.DISTANCE + wallThickness / 2) {
+    if (distToLine > snapDistance + wallThickness / 2) {
         return null
     }
 
@@ -490,7 +640,9 @@ function calculateRoofSnap(
         const intersects = raycaster.intersectObjects(roofMeshes, false)
         if (intersects.length > 0) {
             bestHit = intersects[0]
-            bestDistance = 0 // Directly under, so distance is 0
+            const dx = piecePos[0] - bestHit.point.x
+            const dz = piecePos[2] - bestHit.point.z
+            bestDistance = Math.sqrt(dx * dx + dz * dz)
         }
     }
 
@@ -523,12 +675,14 @@ function calculateRoofSnap(
     // For angled roofs, we need to offset perpendicular to the surface.
     const surfaceOffset = pieceSize.height / 2 + 0.02
 
-    // The snap position needs to be offset along the surface normal, not just Y
-    // This ensures pieces sit ON TOP of angled roof surfaces correctly
+    const offsetVector = isRoofOnly ? new THREE.Vector3(0, 1, 0) : normal
+
+    // The snap position needs to be offset along the surface normal for flat-on-roof pieces.
+    // Roof-only pieces (chimney) stay upright and offset vertically.
     const snapPos: Position = [
-        point.x + normal.x * surfaceOffset,
-        point.y + normal.y * surfaceOffset,
-        point.z + normal.z * surfaceOffset
+        point.x + offsetVector.x * surfaceOffset,
+        point.y + offsetVector.y * surfaceOffset,
+        point.z + offsetVector.z * surfaceOffset
     ]
 
     // Keep piece upright on roof

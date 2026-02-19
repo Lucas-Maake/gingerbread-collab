@@ -8,6 +8,17 @@ const rateLimiter = new RateLimiter()
 
 // Broadcast throttler for transform updates
 const broadcastThrottler = new BroadcastThrottler(RATE_LIMITS.MAX_BROADCAST_HZ)
+const VALID_SURFACE_TYPES = new Set(['ground', 'wall', 'roof'])
+const MAX_WALL_HEIGHT = 5
+const MAX_ICING_RADIUS = 1
+
+function isFiniteVector2(value) {
+  return Array.isArray(value) && value.length === 2 && value.every(Number.isFinite)
+}
+
+function isFiniteVector3(value) {
+  return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)
+}
 
 /**
  * Register all socket event handlers
@@ -18,8 +29,28 @@ export function registerSocketHandlers(io, socket) {
   // Initialize rate limiters for this connection
   rateLimiter.addConnection(socketId, {
     cursor: RATE_LIMITS.CURSOR_UPDATES,
-    transform: RATE_LIMITS.TRANSFORM_UPDATES
+    transform: RATE_LIMITS.TRANSFORM_UPDATES,
+    join: RATE_LIMITS.JOIN_ATTEMPTS,
+    spawnPiece: RATE_LIMITS.SPAWN_PIECE,
+    deletePiece: RATE_LIMITS.DELETE_PIECE,
+    createWall: RATE_LIMITS.CREATE_WALL,
+    createFenceLine: RATE_LIMITS.CREATE_FENCE_LINE,
+    createIcing: RATE_LIMITS.CREATE_ICING,
+    sendChat: RATE_LIMITS.SEND_CHAT,
+    resetRoom: RATE_LIMITS.RESET_ROOM,
+    undo: RATE_LIMITS.UNDO
   })
+
+  const isRateLimited = (eventKey, callback = null) => {
+    if (rateLimiter.allow(socketId, eventKey)) {
+      return false
+    }
+
+    if (typeof callback === 'function') {
+      callback({ error: 'RATE_LIMITED' })
+    }
+    return true
+  }
 
   // ==================== ROOM EVENTS ====================
 
@@ -27,8 +58,12 @@ export function registerSocketHandlers(io, socket) {
    * Join a room
    * @param {Object} data - { roomId: string, userName?: string, previousUserId?: string }
    */
-  socket.on('join_room', (data, callback) => {
+  socket.on('join_room', async (data, callback) => {
     const { roomId, userName, previousUserId } = data
+
+    if (!previousUserId && isRateLimited('join', callback)) {
+      return
+    }
 
     if (!roomId || typeof roomId !== 'string' || roomId.length !== 6) {
       return callback({ error: 'INVALID_ROOM_CODE' })
@@ -41,8 +76,13 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: result.error })
     }
 
-    // Join Socket.IO room for broadcasts
-    socket.join(normalizedRoomId)
+    try {
+      // Ensure room membership is active before acknowledging join
+      await socket.join(normalizedRoomId)
+    } catch (error) {
+      console.error('Failed to join socket.io room:', normalizedRoomId, error)
+      return callback({ error: 'JOIN_FAILED' })
+    }
 
     // Notify others in room (only if this is a new user, not a reconnect)
     if (!result.isReconnect) {
@@ -104,6 +144,10 @@ export function registerSocketHandlers(io, socket) {
    * @param {Object} data - { type: string }
    */
   socket.on('spawn_piece', (data, callback) => {
+    if (isRateLimited('spawnPiece', callback)) {
+      return
+    }
+
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -139,6 +183,8 @@ export function registerSocketHandlers(io, socket) {
       piece: result.piece.toJSON(),
       spawnedBy: user.userId
     })
+
+    roomManager.markRoomDirty()
 
     callback({ success: true, piece: result.piece.toJSON(), undoCount: user.undoStack.length })
   })
@@ -234,6 +280,8 @@ export function registerSocketHandlers(io, socket) {
       reason: result.reason
     })
 
+    roomManager.markRoomDirty()
+
     callback({
       success: true,
       piece: result.piece.toJSON(),
@@ -282,6 +330,10 @@ export function registerSocketHandlers(io, socket) {
    * @param {Object} data - { pieceId: string }
    */
   socket.on('delete_piece', (data, callback) => {
+    if (isRateLimited('deletePiece', callback)) {
+      return
+    }
+
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -318,6 +370,19 @@ export function registerSocketHandlers(io, socket) {
       deletedBy: user.userId
     })
 
+    // Broadcast cascade deletions for pieces attached to the deleted parent piece
+    if (result.deletedAttachedPieces && result.deletedAttachedPieces.length > 0) {
+      for (const attachedPieceId of result.deletedAttachedPieces) {
+        io.to(room.roomId).emit('piece_deleted', {
+          pieceId: attachedPieceId,
+          deletedBy: user.userId,
+          reason: 'ATTACHED_PARENT_DELETED'
+        })
+      }
+    }
+
+    roomManager.markRoomDirty()
+
     callback({ success: true, undoCount: user.undoStack.length })
   })
 
@@ -327,6 +392,10 @@ export function registerSocketHandlers(io, socket) {
    * Undo last action
    */
   socket.on('undo', (callback) => {
+    if (isRateLimited('undo', callback)) {
+      return
+    }
+
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -398,11 +467,58 @@ export function registerSocketHandlers(io, socket) {
         // Undo wall creation = delete the wall
         undoResult = room.deleteWall(action.wallId, user.userId)
         if (!undoResult.error) {
+          if (undoResult.deletedPieces && undoResult.deletedPieces.length > 0) {
+            for (const pieceId of undoResult.deletedPieces) {
+              io.to(room.roomId).emit('piece_deleted', {
+                pieceId,
+                deletedBy: user.userId,
+                reason: 'WALL_DELETED'
+              })
+            }
+          }
+          if (undoResult.deletedIcing && undoResult.deletedIcing.length > 0) {
+            for (const icingId of undoResult.deletedIcing) {
+              io.to(room.roomId).emit('icing_stroke_deleted', {
+                icingId,
+                deletedBy: user.userId,
+                reason: 'WALL_DELETED'
+              })
+            }
+          }
           io.to(room.roomId).emit('wall_segment_deleted', {
             wallId: action.wallId,
             deletedBy: user.userId,
-            reason: 'UNDO'
+            reason: 'UNDO',
+            deletedPieces: undoResult.deletedPieces || [],
+            deletedIcing: undoResult.deletedIcing || [],
+            deletedRoofPieces: undoResult.deletedRoofPieces || [],
+            deletedRoofIcing: undoResult.deletedRoofIcing || []
           })
+        }
+        break
+
+      case 'CREATE_FENCE_LINE':
+        if (Array.isArray(action.pieceIds) && action.pieceIds.length > 0) {
+          for (const pieceId of action.pieceIds) {
+            const deleteResult = room.deletePiece(pieceId, user.userId)
+            if (!deleteResult.error) {
+              io.to(room.roomId).emit('piece_deleted', {
+                pieceId,
+                deletedBy: user.userId,
+                reason: 'UNDO'
+              })
+
+              if (deleteResult.deletedAttachedPieces && deleteResult.deletedAttachedPieces.length > 0) {
+                for (const attachedPieceId of deleteResult.deletedAttachedPieces) {
+                  io.to(room.roomId).emit('piece_deleted', {
+                    pieceId: attachedPieceId,
+                    deletedBy: user.userId,
+                    reason: 'ATTACHED_PARENT_DELETED'
+                  })
+                }
+              }
+            }
+          }
         }
         break
 
@@ -455,15 +571,75 @@ export function registerSocketHandlers(io, socket) {
     }
 
     callback({ success: true, action: action.action, undoCount: user.undoStack.length })
+    roomManager.markRoomDirty()
   })
 
   // ==================== WALL EVENTS ====================
+
+  /**
+   * Create a fence line (spawns multiple fence posts)
+   * @param {Object} data - { start: [x, z], end: [x, z], spacing?: number }
+   */
+  socket.on('create_fence_line', (data, callback) => {
+    if (isRateLimited('createFenceLine', callback)) {
+      return
+    }
+
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const { start, end, spacing = 0.5 } = data
+
+    if (!isFiniteVector2(start) || !isFiniteVector2(end)) {
+      return callback({ error: 'INVALID_FENCE_DATA' })
+    }
+
+    const result = room.createFenceLine(start, end, spacing, user.userId)
+    if (result.error) {
+      return callback({ error: result.error })
+    }
+
+    const pieces = result.pieces || []
+
+    if (pieces.length > 0) {
+      user.addToUndoStack({
+        action: 'CREATE_FENCE_LINE',
+        pieceIds: pieces.map(piece => piece.pieceId)
+      })
+    }
+
+    for (const piece of pieces) {
+      io.to(room.roomId).emit('piece_spawned', {
+        piece: piece.toJSON(),
+        spawnedBy: user.userId,
+        reason: 'FENCE_LINE'
+      })
+    }
+
+    callback({
+      success: true,
+      pieces: pieces.map(piece => piece.toJSON()),
+      undoCount: user.undoStack.length
+    })
+    roomManager.markRoomDirty()
+  })
 
   /**
    * Create a wall segment
    * @param {Object} data - { start: [x, z], end: [x, z], height?: number }
    */
   socket.on('create_wall_segment', (data, callback) => {
+    if (isRateLimited('createWall', callback)) {
+      return
+    }
+
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -477,8 +653,8 @@ export function registerSocketHandlers(io, socket) {
     const { start, end, height = 1.5 } = data
 
     // Validate input
-    if (!Array.isArray(start) || start.length !== 2 ||
-      !Array.isArray(end) || end.length !== 2) {
+    if (!isFiniteVector2(start) || !isFiniteVector2(end) ||
+      !Number.isFinite(height) || height <= 0 || height > MAX_WALL_HEIGHT) {
       return callback({ error: 'INVALID_WALL_DATA' })
     }
 
@@ -499,6 +675,8 @@ export function registerSocketHandlers(io, socket) {
       wall: result.wall.toJSON(),
       createdBy: user.userId
     })
+
+    roomManager.markRoomDirty()
 
     callback({ success: true, wall: result.wall.toJSON(), undoCount: user.undoStack.length })
   })
@@ -565,8 +743,12 @@ export function registerSocketHandlers(io, socket) {
       wallId,
       deletedBy: user.userId,
       deletedPieces: result.deletedPieces || [],
-      deletedIcing: result.deletedIcing || []
+      deletedIcing: result.deletedIcing || [],
+      deletedRoofPieces: result.deletedRoofPieces || [],
+      deletedRoofIcing: result.deletedRoofIcing || []
     })
+
+    roomManager.markRoomDirty()
 
     callback({ success: true, undoCount: user.undoStack.length })
   })
@@ -578,6 +760,10 @@ export function registerSocketHandlers(io, socket) {
    * @param {Object} data - { points: [[x,y,z],...], radius?: number, surfaceType?: string, surfaceId?: string }
    */
   socket.on('create_icing_stroke', (data, callback) => {
+    if (isRateLimited('createIcing', callback)) {
+      return
+    }
+
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -591,7 +777,15 @@ export function registerSocketHandlers(io, socket) {
     const { points, radius = 0.05, surfaceType = 'ground', surfaceId = null } = data
 
     // Validate input
-    if (!Array.isArray(points) || points.length < 2) {
+    const hasInvalidPoint = !Array.isArray(points) ||
+      points.length < 2 ||
+      !points.every(isFiniteVector3)
+
+    const hasInvalidRadius = !Number.isFinite(radius) || radius <= 0 || radius > MAX_ICING_RADIUS
+    const hasInvalidSurfaceType = !VALID_SURFACE_TYPES.has(surfaceType)
+    const hasInvalidSurfaceId = !(surfaceId === null || typeof surfaceId === 'string')
+
+    if (hasInvalidPoint || hasInvalidRadius || hasInvalidSurfaceType || hasInvalidSurfaceId) {
       return callback({ error: 'INVALID_ICING_DATA' })
     }
 
@@ -612,6 +806,8 @@ export function registerSocketHandlers(io, socket) {
       icing: result.icing.toJSON(),
       createdBy: user.userId
     })
+
+    roomManager.markRoomDirty()
 
     callback({ success: true, icing: result.icing.toJSON(), undoCount: user.undoStack.length })
   })
@@ -656,6 +852,8 @@ export function registerSocketHandlers(io, socket) {
       icingId,
       deletedBy: user.userId
     })
+
+    roomManager.markRoomDirty()
 
     callback({ success: true, undoCount: user.undoStack.length })
   })
@@ -729,6 +927,10 @@ export function registerSocketHandlers(io, socket) {
    * @param {Object} data - { message: string }
    */
   socket.on('send_chat_message', (data, callback) => {
+    if (isRateLimited('sendChat', callback)) {
+      return
+    }
+
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -758,6 +960,8 @@ export function registerSocketHandlers(io, socket) {
     // Broadcast to all in room (including sender)
     io.to(room.roomId).emit('chat_message', chatMessage)
 
+    roomManager.markRoomDirty()
+
     callback({ success: true, message: chatMessage })
   })
 
@@ -779,6 +983,10 @@ export function registerSocketHandlers(io, socket) {
    * Reset room (host only) - clears pieces, walls, and icing
    */
   socket.on('reset_room', (callback) => {
+    if (isRateLimited('resetRoom', callback)) {
+      return
+    }
+
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -800,6 +1008,8 @@ export function registerSocketHandlers(io, socket) {
       snapshot: room.getSnapshot(),
       resetBy: user.userId
     })
+
+    roomManager.markRoomDirty()
 
     callback({ success: true })
   })

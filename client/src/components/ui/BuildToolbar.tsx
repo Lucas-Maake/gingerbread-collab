@@ -10,6 +10,8 @@ export default function BuildToolbar() {
     const toggleRoofStyle = useGameStore((state) => state.toggleRoofStyle)
     const roofPitchAngle = useGameStore((state) => state.roofPitchAngle)
     const setRoofPitchAngle = useGameStore((state) => state.setRoofPitchAngle)
+    const tableSnowEnabled = useGameStore((state) => state.tableSnowEnabled)
+    const toggleTableSnow = useGameStore((state) => state.toggleTableSnow)
 
     return (
         <div className="build-toolbar">
@@ -35,6 +37,16 @@ export default function BuildToolbar() {
                             <path d="M3 5v14h18V5H3zm16 12H5V7h14v10zM7 9h2v2H7V9zm4 0h2v2h-2V9zm4 0h2v2h-2V9zm-8 4h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z" />
                         </svg>
                         <span>Wall</span>
+                    </button>
+                    <button
+                        className={`toolbar-btn ${buildMode === 'fence' ? 'active' : ''}`}
+                        onClick={() => setBuildMode('fence')}
+                        title="Draw Fences (F)"
+                    >
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                            <path d="M4 4h2v16H4V4zm7 0h2v16h-2V4zm7 0h2v16h-2V4zM2 9h20v2H2V9zm0 5h20v2H2v-2z" />
+                        </svg>
+                        <span>Fence</span>
                     </button>
                     <button
                         className={`toolbar-btn ${buildMode === 'icing' ? 'active' : ''}`}
@@ -77,6 +89,16 @@ export default function BuildToolbar() {
                     </svg>
                     <span>{roofStyle === 'pitched' ? 'Pitched' : 'Flat'}</span>
                 </button>
+                <button
+                    className={`toolbar-btn toggle ${tableSnowEnabled ? 'active' : ''}`}
+                    onClick={toggleTableSnow}
+                    title="Toggle snowy tabletop"
+                >
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M22 11h-4.17l2.54-2.54-1.42-1.42L15 11h-2V9l3.96-3.96-1.42-1.42L13 6.17V2h-2v4.17L8.46 3.63 7.04 5.04 11 9v2H9L5.04 7.04 3.63 8.46 6.17 11H2v2h4.17l-2.54 2.54 1.42 1.42L9 13h2v2l-3.96 3.96 1.42 1.42L11 17.83V22h2v-4.17l2.54 2.54 1.42-1.42L13 15v-2h2l3.96 3.96 1.42-1.42L17.83 13H22v-2z" />
+                    </svg>
+                    <span>Snowy</span>
+                </button>
             </div>
 
             {roofStyle === 'pitched' && (
@@ -100,6 +122,12 @@ export default function BuildToolbar() {
             {buildMode === 'wall' && (
                 <div className="toolbar-hint">
                     Click to set start point, click again to place wall
+                </div>
+            )}
+
+            {buildMode === 'fence' && (
+                <div className="toolbar-hint">
+                    Click to set start point, click again to place a fence row
                 </div>
             )}
 

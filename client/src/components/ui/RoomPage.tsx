@@ -15,13 +15,45 @@ import ChatPanel from './ChatPanel'
 import CameraPresets from './CameraPresets'
 import './RoomPage.css'
 
+async function copyTextToClipboard(text: string): Promise<boolean> {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(text)
+            return true
+        } catch (error) {
+            // Fall back to legacy copy path below
+        }
+    }
+
+    try {
+        const textArea = document.createElement('textarea')
+        textArea.value = text
+        textArea.setAttribute('readonly', '')
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        textArea.style.pointerEvents = 'none'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+
+        const copied = document.execCommand('copy')
+        document.body.removeChild(textArea)
+        return copied
+    } catch {
+        return false
+    }
+}
+
 export default function RoomPage() {
     const { roomId } = useParams<{ roomId: string }>()
     const navigate = useNavigate()
 
     const [isJoining, setIsJoining] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [copyLinkState, setCopyLinkState] = useState<'idle' | 'success' | 'error'>('idle')
     const hasJoined = useRef(false)
+    const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const pendingLeaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Get state from store
     const connectionState = useGameStore((state) => state.connectionState)
@@ -31,6 +63,11 @@ export default function RoomPage() {
 
     // Join room on mount
     useEffect(() => {
+        if (pendingLeaveTimeoutRef.current) {
+            clearTimeout(pendingLeaveTimeoutRef.current)
+            pendingLeaveTimeoutRef.current = null
+        }
+
         // Prevent double-join from React StrictMode
         if (hasJoined.current) return
         hasJoined.current = true
@@ -62,7 +99,11 @@ export default function RoomPage() {
 
         // Cleanup on unmount - get fresh leaveRoom reference
         return () => {
-            useGameStore.getState().leaveRoom()
+            // Delay leave slightly so StrictMode dev remount does not trigger a real leave/join churn cycle.
+            pendingLeaveTimeoutRef.current = setTimeout(() => {
+                useGameStore.getState().leaveRoom()
+                pendingLeaveTimeoutRef.current = null
+            }, 150)
         }
     }, [roomId])
 
@@ -82,6 +123,47 @@ export default function RoomPage() {
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [handleUndo])
+
+    useEffect(() => {
+        return () => {
+            if (copyResetTimeoutRef.current) {
+                clearTimeout(copyResetTimeoutRef.current)
+                copyResetTimeoutRef.current = null
+            }
+            if (pendingLeaveTimeoutRef.current) {
+                clearTimeout(pendingLeaveTimeoutRef.current)
+                pendingLeaveTimeoutRef.current = null
+            }
+        }
+    }, [])
+
+    const setCopyFeedback = useCallback((state: 'success' | 'error') => {
+        setCopyLinkState(state)
+
+        if (copyResetTimeoutRef.current) {
+            clearTimeout(copyResetTimeoutRef.current)
+        }
+
+        copyResetTimeoutRef.current = setTimeout(() => {
+            setCopyLinkState('idle')
+            copyResetTimeoutRef.current = null
+        }, 2000)
+    }, [])
+
+    const handleCopyLink = useCallback(async () => {
+        const copied = await copyTextToClipboard(window.location.href)
+        setCopyFeedback(copied ? 'success' : 'error')
+    }, [setCopyFeedback])
+
+    const copyButtonLabel = copyLinkState === 'success'
+        ? 'Copied!'
+        : copyLinkState === 'error'
+            ? 'Copy Failed'
+            : 'Copy Link'
+
+    const copyButtonTitle = copyLinkState === 'error'
+        ? 'Clipboard unavailable. Please copy from the address bar.'
+        : 'Copy room link'
 
     // Handle connection error
     if (error) {
@@ -118,12 +200,12 @@ export default function RoomPage() {
                 <div className="room-info">
                     <h2>Room: {roomId}</h2>
                     <button
-                        className="btn-copy"
-                        onClick={() => {
-                            navigator.clipboard.writeText(window.location.href)
-                        }}
+                        className={`btn-copy ${copyLinkState === 'success' ? 'copied' : ''} ${copyLinkState === 'error' ? 'copy-error' : ''}`}
+                        onClick={handleCopyLink}
+                        title={copyButtonTitle}
+                        aria-live="polite"
                     >
-                        Copy Link
+                        {copyButtonLabel}
                     </button>
                     <span className="piece-count">
                         {pieceCount}/{maxPieces} pieces
@@ -144,7 +226,7 @@ export default function RoomPage() {
             <div className="controls-overlay">
                 <div className="controls-hint">
                     <p><strong>Controls:</strong></p>
-                    <p>V: Select mode | W: Wall mode | I: Icing mode</p>
+                    <p>V: Select mode | W: Wall mode | F: Fence mode | I: Icing mode</p>
                     <p>G: Toggle grid snap | R: Toggle roof style</p>
                     <p>Rotate View: Right Mouse Drag</p>
                     <p>Pan: Middle Mouse / Shift + Drag</p>

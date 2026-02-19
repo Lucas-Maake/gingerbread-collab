@@ -10,9 +10,71 @@ export class RoomManager {
     this.socketToRoom = new Map() // Map<socketId, roomId>
     this.recentlyDisconnected = new Map() // Map<`${roomId}:${visitorId}`, { user, disconnectTime }>
     this.cleanupInterval = null
+    this.snapshotStore = null
+    this.isPersistenceDirty = false
+    this.persistenceFlushInFlight = null
 
     // Start cleanup timer
     this.startCleanupTimer()
+  }
+
+  setSnapshotStore(snapshotStore) {
+    this.snapshotStore = snapshotStore
+  }
+
+  markRoomDirty() {
+    this.isPersistenceDirty = true
+  }
+
+  async hydrateFromSnapshotStore() {
+    if (!this.snapshotStore) {
+      return 0
+    }
+
+    const snapshots = await this.snapshotStore.loadSnapshots()
+    let restoredCount = 0
+
+    for (const snapshot of snapshots.values()) {
+      const room = RoomState.fromSnapshot(snapshot)
+      if (!room) continue
+      this.rooms.set(room.roomId, room)
+      restoredCount += 1
+    }
+
+    if (restoredCount > 0) {
+      console.log(`Hydrated ${restoredCount} room snapshots from persistence`)
+    }
+
+    this.isPersistenceDirty = false
+    return restoredCount
+  }
+
+  async persistRooms(force = false) {
+    if (!this.snapshotStore) {
+      return
+    }
+
+    if (!force && !this.isPersistenceDirty) {
+      return
+    }
+
+    if (this.persistenceFlushInFlight) {
+      return this.persistenceFlushInFlight
+    }
+
+    this.persistenceFlushInFlight = this.snapshotStore
+      .saveSnapshots(this.rooms)
+      .then(() => {
+        this.isPersistenceDirty = false
+      })
+      .catch((error) => {
+        console.error('Failed to persist room snapshots:', error)
+      })
+      .finally(() => {
+        this.persistenceFlushInFlight = null
+      })
+
+    return this.persistenceFlushInFlight
   }
 
   /**
@@ -45,6 +107,7 @@ export class RoomManager {
 
     const room = new RoomState(id)
     this.rooms.set(id, room)
+    this.markRoomDirty()
 
     console.log(`Room created: ${id}`)
     return { room }
@@ -117,6 +180,7 @@ export class RoomManager {
     }
 
     this.socketToRoom.set(socketId, roomId)
+    this.markRoomDirty()
 
     return {
       room,
@@ -152,6 +216,7 @@ export class RoomManager {
         user,
         disconnectTime: Date.now()
       })
+      this.markRoomDirty()
     }
 
     return {
@@ -201,6 +266,7 @@ export class RoomManager {
     }
 
     this.rooms.delete(roomId)
+    this.markRoomDirty()
     console.log(`Room deleted: ${roomId}`)
     return true
   }
@@ -237,6 +303,8 @@ export class RoomManager {
         this.recentlyDisconnected.delete(key)
       }
     }
+
+    void this.persistRooms()
   }
 
   /**
@@ -257,6 +325,11 @@ export class RoomManager {
       clearInterval(this.cleanupInterval)
       this.cleanupInterval = null
     }
+  }
+
+  async shutdown() {
+    this.stopCleanupTimer()
+    await this.persistRooms(true)
   }
 
   /**

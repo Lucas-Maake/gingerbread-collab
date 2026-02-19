@@ -8,7 +8,7 @@ import {
     createStarCookieTexture,
     getCachedTexture
 } from '../../utils/proceduralTextures'
-import { PieceConfig } from '../../types'
+import { Normal, PieceConfig, SurfaceType } from '../../types'
 
 interface PieceModelProps {
     config: PieceConfig
@@ -18,6 +18,8 @@ interface PieceModelProps {
     emissiveIntensity?: number
     castShadow?: boolean
     receiveShadow?: boolean
+    snapSurface?: SurfaceType
+    snapNormal?: Normal | null
 }
 
 /**
@@ -30,7 +32,9 @@ export default function PieceModel({
     emissive = '#000000',
     emissiveIntensity = 0,
     castShadow = true,
-    receiveShadow = true
+    receiveShadow = true,
+    snapSurface,
+    snapNormal
 }: PieceModelProps) {
     // If no model path, use fallback
     if (!config.model) {
@@ -43,6 +47,8 @@ export default function PieceModel({
                 emissiveIntensity={emissiveIntensity}
                 castShadow={castShadow}
                 receiveShadow={receiveShadow}
+                snapSurface={snapSurface}
+                snapNormal={snapNormal}
             />
         )
     }
@@ -59,6 +65,8 @@ export default function PieceModel({
                     emissiveIntensity={emissiveIntensity}
                     castShadow={castShadow}
                     receiveShadow={receiveShadow}
+                    snapSurface={snapSurface}
+                    snapNormal={snapNormal}
                 />
             }
         >
@@ -151,9 +159,12 @@ function FallbackGeometry({
     emissive,
     emissiveIntensity,
     castShadow,
-    receiveShadow
+    receiveShadow,
+    snapSurface,
+    snapNormal
 }: PieceModelProps) {
     const props = { config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }
+    const chimneyProps = { config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow, snapSurface, snapNormal }
 
     // Use custom geometries for special pieces
     switch (config.geometry) {
@@ -170,7 +181,7 @@ function FallbackGeometry({
         case 'present':
             return <PresentGeometry {...props} />
         case 'chimney':
-            return <ChimneyGeometry {...props} />
+            return <ChimneyGeometry {...chimneyProps} />
         case 'fencePost':
             return <FencePostGeometry {...props} />
         case 'licorice':
@@ -595,34 +606,144 @@ function PresentGeometry({ config, color, opacity = 1, emissive, emissiveIntensi
 /**
  * Chimney - brick chimney with top
  */
-function ChimneyGeometry({ config, color, opacity = 1, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
+function ChimneyGeometry({
+    config,
+    color,
+    opacity = 1,
+    emissive,
+    emissiveIntensity,
+    castShadow,
+    receiveShadow,
+    snapSurface,
+    snapNormal
+}: PieceModelProps) {
     const brickColor = color || config.color
     const mortarColor = '#808080'
+    const roofNormal = snapSurface === 'roof' && snapNormal ? snapNormal : null
+    const capHeight = 0.04
+    const bodyWidth = (config.size?.[0] || 0.28) * 0.9
+    const bodyDepth = (config.size?.[2] || 0.28) * 0.9
+    const bodyHeight = Math.max(0.3, (config.size?.[1] || 0.5) - capHeight)
+    const bodyHalfHeight = bodyHeight / 2
+    const capYOffset = bodyHalfHeight + capHeight / 2
+
+    const skirtGeometry = useMemo(() => {
+        if (!roofNormal) return null
+
+        const normalVec = new THREE.Vector3(roofNormal[0], roofNormal[1], roofNormal[2]).normalize()
+        const horizontal = new THREE.Vector3(normalVec.x, 0, normalVec.z)
+        if (horizontal.lengthSq() < 1e-4) return null
+
+        const slopeAngle = Math.acos(Math.max(-1, Math.min(1, normalVec.y)))
+        const skirtLength = bodyDepth * 0.7
+        const skirtHeight = Math.min(bodyHeight * 0.6, Math.tan(slopeAngle) * skirtLength + 0.04)
+        if (skirtHeight < 0.01) return null
+
+        const width = bodyWidth
+        const halfW = width / 2
+        const length = skirtLength
+        const height = skirtHeight
+
+        const positions = new Float32Array([
+            // Left triangle
+            -halfW, 0, 0,
+            -halfW, 0, length,
+            -halfW, -height, length,
+            // Right triangle
+            halfW, 0, 0,
+            halfW, -height, length,
+            halfW, 0, length,
+            // Top face
+            -halfW, 0, 0,
+            halfW, 0, 0,
+            halfW, 0, length,
+            -halfW, 0, 0,
+            halfW, 0, length,
+            -halfW, 0, length,
+            // Slanted face
+            -halfW, 0, 0,
+            -halfW, -height, length,
+            halfW, -height, length,
+            -halfW, 0, 0,
+            halfW, -height, length,
+            halfW, 0, 0,
+            // Front face
+            -halfW, 0, length,
+            halfW, 0, length,
+            halfW, -height, length,
+            -halfW, 0, length,
+            halfW, -height, length,
+            -halfW, -height, length
+        ])
+
+        const geometry = new THREE.BufferGeometry()
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+        geometry.computeVertexNormals()
+        return geometry
+    }, [roofNormal])
+
+    const skirtYaw = useMemo(() => {
+        if (!roofNormal) return 0
+        const normalVec = new THREE.Vector3(roofNormal[0], roofNormal[1], roofNormal[2]).normalize()
+        const horizontal = new THREE.Vector3(normalVec.x, 0, normalVec.z)
+        if (horizontal.lengthSq() < 1e-4) return 0
+        horizontal.normalize()
+        return Math.atan2(horizontal.x, horizontal.z)
+    }, [roofNormal])
+
+    const skirtOffset = useMemo(() => {
+        if (!roofNormal) return new THREE.Vector3(0, 0, 0)
+        const normalVec = new THREE.Vector3(roofNormal[0], roofNormal[1], roofNormal[2]).normalize()
+        const horizontal = new THREE.Vector3(normalVec.x, 0, normalVec.z)
+        if (horizontal.lengthSq() < 1e-4) return new THREE.Vector3(0, 0, 0)
+        horizontal.normalize()
+        const skirtInset = 0.01
+        return horizontal.multiplyScalar(-Math.max(0, bodyDepth / 2 - skirtInset))
+    }, [roofNormal, bodyDepth])
 
     return (
         <group>
             {/* Main chimney body */}
             <mesh castShadow={castShadow} receiveShadow={receiveShadow}>
-                <boxGeometry args={[0.25, 0.4, 0.25]} />
+                <boxGeometry args={[bodyWidth, bodyHeight, bodyDepth]} />
                 <meshStandardMaterial color={brickColor} roughness={0.8} metalness={0} opacity={opacity} transparent={opacity < 1} emissive={emissive} emissiveIntensity={emissiveIntensity} />
             </mesh>
             {/* Chimney cap */}
-            <mesh position={[0, 0.22, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
-                <boxGeometry args={[0.28, 0.04, 0.28]} />
+            <mesh position={[0, capYOffset, 0]} castShadow={castShadow} receiveShadow={receiveShadow}>
+                <boxGeometry args={[bodyWidth + 0.03, capHeight, bodyDepth + 0.03]} />
                 <meshStandardMaterial color={mortarColor} roughness={0.7} metalness={0} opacity={opacity} transparent={opacity < 1} />
             </mesh>
             {/* Inner hole */}
-            <mesh position={[0, 0.2, 0]} castShadow={castShadow}>
-                <boxGeometry args={[0.15, 0.05, 0.15]} />
+            <mesh position={[0, capYOffset - capHeight / 2, 0]} castShadow={castShadow}>
+                <boxGeometry args={[bodyWidth * 0.6, capHeight * 1.2, bodyDepth * 0.6]} />
                 <meshStandardMaterial color="#1a1a1a" roughness={1} metalness={0} />
             </mesh>
             {/* Brick lines - horizontal */}
-            {[-0.12, 0, 0.12].map((y, i) => (
-                <mesh key={`h${i}`} position={[0, y, 0.126]} castShadow={castShadow}>
-                    <boxGeometry args={[0.26, 0.008, 0.002]} />
+            {[-0.28, -0.04, 0.2].map((t, i) => (
+                <mesh key={`h${i}`} position={[0, t * bodyHalfHeight, bodyDepth / 2 + 0.001]} castShadow={castShadow}>
+                    <boxGeometry args={[bodyWidth + 0.01, 0.008, 0.002]} />
                     <meshStandardMaterial color={mortarColor} roughness={0.9} metalness={0} />
                 </mesh>
             ))}
+            {skirtGeometry && (
+                <mesh
+                    geometry={skirtGeometry}
+                    position={[skirtOffset.x, -bodyHalfHeight, skirtOffset.z]}
+                    rotation={[0, skirtYaw, 0]}
+                    castShadow={castShadow}
+                    receiveShadow={receiveShadow}
+                >
+                    <meshStandardMaterial
+                        color={brickColor}
+                        roughness={0.85}
+                        metalness={0}
+                        opacity={opacity}
+                        transparent={opacity < 1}
+                        emissive={emissive}
+                        emissiveIntensity={emissiveIntensity}
+                    />
+                </mesh>
+            )}
         </group>
     )
 }

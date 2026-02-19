@@ -8,12 +8,12 @@ import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
 const BUILD_SURFACE_SIZE = 5 // Half-size bounds
 
 /**
- * Handles wall drawing interactions
+ * Handles fence drawing interactions
  * - First click sets start point
- * - Second click creates wall and resets
+ * - Second click creates a fence line and resets
  * - Escape cancels drawing
  */
-export default function WallDrawingManager() {
+export default function FenceDrawingManager() {
     const { camera, gl } = useThree()
 
     const raycaster = useRef(new THREE.Raycaster())
@@ -22,20 +22,18 @@ export default function WallDrawingManager() {
     const intersectPoint = useRef(new THREE.Vector3())
 
     useEffect(() => {
-        const canvas = gl.domElement as HTMLCanvasElement & { __wallPreviewMouse?: { x: number, y: number } }
+        const canvas = gl.domElement as HTMLCanvasElement & { __fencePreviewMouse?: { x: number, y: number } }
 
-        // Initialize mouse state for preview
-        canvas.__wallPreviewMouse = { x: 0, y: 0 }
+        canvas.__fencePreviewMouse = { x: 0, y: 0 }
 
         const updateMousePosition = (event: MouseEvent | PointerEvent) => {
             const rect = canvas.getBoundingClientRect()
             mouse.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
             mouse.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
 
-            // Store for preview component
-            if (canvas.__wallPreviewMouse) {
-                canvas.__wallPreviewMouse.x = mouse.current.x
-                canvas.__wallPreviewMouse.y = mouse.current.y
+            if (canvas.__fencePreviewMouse) {
+                canvas.__fencePreviewMouse.x = mouse.current.x
+                canvas.__fencePreviewMouse.y = mouse.current.y
             }
         }
 
@@ -54,17 +52,11 @@ export default function WallDrawingManager() {
 
         const handlePointerDown = (event: PointerEvent) => {
             if (!event.isPrimary) return
-
-            // Only handle left click
             if (event.button !== 0) return
-
-            // Ignore if shift is held (camera pan)
             if (event.shiftKey) return
 
             const state = useGameStore.getState()
-
-            // Only handle in wall mode
-            if (state.buildMode !== 'wall') return
+            if (state.buildMode !== 'fence') return
 
             event.preventDefault()
             updateMousePosition(event)
@@ -74,42 +66,27 @@ export default function WallDrawingManager() {
             let x = point.x
             let z = point.z
 
-            // Apply grid snap
             if (state.gridSnapEnabled) {
                 const snapped = snapPointToGrid([x, z], state.gridSize)
                 x = snapped[0]
                 z = snapped[1]
             }
 
-            // Clamp to bounds
             const [clampedX, clampedZ] = clampToBounds(x, z)
 
-            if (!state.wallDrawingStartPoint) {
-                // First click - set start point
-                state.setWallDrawingStartPoint([clampedX, clampedZ])
+            if (!state.fenceDrawingStartPoint) {
+                state.setFenceDrawingStartPoint([clampedX, clampedZ])
                 playGlobalSound(SoundType.GRAB)
-            } else {
-                // Second click - create wall
-                const [startX, startZ] = state.wallDrawingStartPoint
-
-                // Check if wall is long enough
-                const dx = clampedX - startX
-                const dz = clampedZ - startZ
-                const length = Math.sqrt(dx * dx + dz * dz)
-
-                if (length >= 0.3) {
-                    // Reset immediately so the next wall can begin without waiting for network ack.
-                    state.clearWallDrawingStartPoint()
-
-                    state.createWall([startX, startZ], [clampedX, clampedZ])
-                        .catch((error) => {
-                            console.error('Failed to create wall:', error)
-                        })
-                } else {
-                    // Wall too short - just reset
-                    state.clearWallDrawingStartPoint()
-                }
+                return
             }
+
+            const [startX, startZ] = state.fenceDrawingStartPoint
+            state.clearFenceDrawingStartPoint()
+
+            state.createFenceLine([startX, startZ], [clampedX, clampedZ], state.gridSize)
+                .catch((error) => {
+                    console.error('Failed to create fence line:', error)
+                })
         }
 
         const handlePointerMove = (event: PointerEvent) => {
@@ -119,25 +96,22 @@ export default function WallDrawingManager() {
         const handleKeyDown = (event: KeyboardEvent) => {
             const state = useGameStore.getState()
 
-            if (state.buildMode !== 'wall') return
+            if (state.buildMode !== 'fence') return
 
-            if (event.key === 'Escape' && state.wallDrawingStartPoint) {
-                // Cancel wall drawing
-                state.clearWallDrawingStartPoint()
+            if (event.key === 'Escape' && state.fenceDrawingStartPoint) {
+                state.clearFenceDrawingStartPoint()
             }
         }
 
         const handleContextMenu = (event: MouseEvent) => {
             const state = useGameStore.getState()
 
-            // In wall mode, right-click cancels drawing
-            if (state.buildMode === 'wall' && state.wallDrawingStartPoint) {
+            if (state.buildMode === 'fence' && state.fenceDrawingStartPoint) {
                 event.preventDefault()
-                state.clearWallDrawingStartPoint()
+                state.clearFenceDrawingStartPoint()
             }
         }
 
-        // Add event listeners
         canvas.addEventListener('pointerdown', handlePointerDown)
         canvas.addEventListener('pointermove', handlePointerMove)
         canvas.addEventListener('contextmenu', handleContextMenu)
@@ -148,7 +122,7 @@ export default function WallDrawingManager() {
             canvas.removeEventListener('pointermove', handlePointerMove)
             canvas.removeEventListener('contextmenu', handleContextMenu)
             window.removeEventListener('keydown', handleKeyDown)
-            delete (canvas as any).__wallPreviewMouse
+            delete (canvas as any).__fencePreviewMouse
         }
     }, [camera, gl])
 

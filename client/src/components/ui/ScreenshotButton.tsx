@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
+import { requestSceneScreenshot } from '../../utils/screenshotCapture'
 import './ScreenshotButton.css'
 
 /**
@@ -14,18 +15,7 @@ export default function ScreenshotButton() {
         setIsCapturing(true)
 
         try {
-            // Find the Three.js canvas
-            const canvas = document.querySelector('.canvas-container canvas') as HTMLCanvasElement
-
-            if (!canvas) {
-                console.error('Canvas not found')
-                setIsCapturing(false)
-                return
-            }
-
-            // Get the WebGL context and render one more frame to ensure latest state
-            // Then capture the image
-            const dataUrl = canvas.toDataURL('image/png')
+            const dataUrl = await requestSceneScreenshot()
 
             // Create download link
             const link = document.createElement('a')

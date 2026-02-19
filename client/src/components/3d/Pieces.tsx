@@ -77,13 +77,15 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
         // If we're already holding this piece, release it
         if (heldPieceId === piece.pieceId) {
             console.log('Releasing piece:', piece.pieceId)
-            // Pass the current attachedTo value and snapNormal (preserved from snap state)
+            // Prefer live snap info (if any), otherwise fall back to stored attachment.
             const currentSnapInfo = state.snapInfo
+            const attachedTo = currentSnapInfo?.targetId ?? piece.attachedTo ?? null
+            const snapNormal = currentSnapInfo?.normal ?? piece.snapNormal ?? null
             await releasePiece(
                 piece.pos,
                 piece.yaw,
-                piece.attachedTo || (currentSnapInfo?.targetId || null),
-                currentSnapInfo?.normal || null
+                attachedTo,
+                snapNormal
             )
             return
         }
@@ -213,6 +215,26 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
         return null
     }
 
+    const resolveSurfaceInfo = () => {
+        let surfaceType = null
+        let normal = null
+
+        if (isLocallyHeld && snapInfo) {
+            surfaceType = snapInfo.surfaceType
+            normal = snapInfo.normal
+        } else if (isSnappedPiece) {
+            surfaceType = piece.attachedTo === 'roof' ? 'roof' : 'wall'
+            normal = piece.snapNormal || null
+            if (!normal && surfaceType === 'wall' && piece.attachedTo) {
+                normal = getWallNormal(piece.attachedTo)
+            }
+        }
+
+        return { surfaceType, normal }
+    }
+
+    const { surfaceType, normal } = resolveSurfaceInfo()
+
     // Calculate rotation for decorative pieces on walls and roofs
     // - On walls: pieces lay flat against the wall surface
     // - On roofs: pieces tilt to lay flat on the sloped surface
@@ -221,37 +243,37 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
             return [config.rotationX || 0, piece.yaw || 0, 0]
         }
 
-        let surfaceType = null
-        let normal = null
+        const orientDecorativeToNormal = (surfaceNormal: [number, number, number]): [number, number, number] => {
+            const normalVec = new THREE.Vector3(surfaceNormal[0], surfaceNormal[1], surfaceNormal[2]).normalize()
+            const worldUp = new THREE.Vector3(0, 1, 0)
 
-        // Determine surface type and normal
-        if (isLocallyHeld && snapInfo) {
-            surfaceType = snapInfo.surfaceType
-            normal = snapInfo.normal
-        } else if (isSnappedPiece) {
-            surfaceType = piece.attachedTo === 'roof' ? 'roof' : 'wall'
-            // Use stored snapNormal from piece data (set when piece was released)
-            normal = piece.snapNormal || null
-            // Fallback: if no stored normal for walls, calculate it
-            if (!normal && surfaceType === 'wall' && piece.attachedTo) {
-                normal = getWallNormal(piece.attachedTo)
+            // Use world up projected onto the surface to keep decorative pieces upright
+            let upInPlane = worldUp.clone().projectOnPlane(normalVec)
+            if (upInPlane.lengthSq() < 1e-6) {
+                upInPlane = new THREE.Vector3(0, 0, -1).projectOnPlane(normalVec)
             }
+            upInPlane.normalize()
+
+            const yAxis = normalVec
+            let zAxis = upInPlane.clone().negate() // Local -Z points "up" for flat decorative shapes
+            let xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis).normalize()
+            zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize()
+
+            const matrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis)
+            const quaternion = new THREE.Quaternion().setFromRotationMatrix(matrix)
+            const euler = new THREE.Euler().setFromQuaternion(quaternion, 'XYZ')
+
+            return [euler.x, euler.y, euler.z]
         }
 
         // For roof surfaces: orient piece to lay flat on the sloped roof
         if (surfaceType === 'roof') {
+            if (piece.type === 'CHIMNEY') {
+                return [config.rotationX || 0, piece.yaw || 0, 0]
+            }
             // Use stored or live normal to orient piece on roof
             if (normal && Array.isArray(normal) && normal.length >= 3) {
-                const roofNormal = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize()
-                const upVector = new THREE.Vector3(0, 1, 0)
-
-                const quaternion = new THREE.Quaternion()
-                quaternion.setFromUnitVectors(upVector, roofNormal)
-
-                const euler = new THREE.Euler()
-                euler.setFromQuaternion(quaternion, 'XYZ')
-
-                return [euler.x, euler.y, euler.z]
+                return orientDecorativeToNormal([normal[0], normal[1], normal[2]])
             }
 
             // Fallback for legacy pieces without stored snapNormal:
@@ -263,15 +285,7 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
             const normalY = Math.cos(signedAngle)
             const normalZ = Math.sin(signedAngle)
             const roofNormal = new THREE.Vector3(0, normalY, normalZ).normalize()
-            const upVector = new THREE.Vector3(0, 1, 0)
-
-            const quaternion = new THREE.Quaternion()
-            quaternion.setFromUnitVectors(upVector, roofNormal)
-
-            const euler = new THREE.Euler()
-            euler.setFromQuaternion(quaternion, 'XYZ')
-
-            return [euler.x, euler.y, euler.z]
+            return orientDecorativeToNormal([roofNormal.x, roofNormal.y, roofNormal.z])
         }
 
         // No snap or unrecognized surface - piece sits normally
@@ -282,18 +296,7 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
         // For walls: use quaternion to align piece's Y-axis with the wall normal
         // This makes the piece lay flat against the wall surface
         if (normal && Array.isArray(normal) && normal.length >= 3) {
-            const wallNormal = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize()
-            const upVector = new THREE.Vector3(0, 1, 0)
-
-            // Create quaternion that rotates the up vector to align with the wall normal
-            const quaternion = new THREE.Quaternion()
-            quaternion.setFromUnitVectors(upVector, wallNormal)
-
-            // Convert to Euler angles
-            const euler = new THREE.Euler()
-            euler.setFromQuaternion(quaternion, 'XYZ')
-
-            return [euler.x, euler.y, euler.z]
+            return orientDecorativeToNormal([normal[0], normal[1], normal[2]])
         }
 
         // Fallback: use the yaw with a -90° pitch
@@ -331,6 +334,8 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
                 opacity={isHeldByOther ? 0.7 : 1}
                 emissive={isHovered && canInteract ? pieceColor : '#000000'}
                 emissiveIntensity={isHovered && canInteract ? 0.2 : 0}
+                snapSurface={surfaceType}
+                snapNormal={normal}
             />
 
             {/* Outline when held */}

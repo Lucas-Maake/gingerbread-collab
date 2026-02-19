@@ -1,5 +1,6 @@
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
+import { useGameStore } from '../../context/gameStore'
 
 // Build surface dimensions (from PRD)
 const WIDTH = 10
@@ -17,6 +18,7 @@ const APRON_INSET = 0.3
 const WOOD_COLOR = '#A07850'
 const WOOD_DARK = '#8B6842'
 const WOOD_LEGS = '#966B4A'
+const SNOW_COLOR = '#FFFDF7'
 
 
 /**
@@ -98,10 +100,64 @@ function createWoodTexture(width = 512, height = 512, baseColor = WOOD_COLOR, gr
 }
 
 /**
+ * Generate a patchy snow alpha texture for the tabletop
+ */
+function createSnowPatchTexture(width = 1024, height = 1024) {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return new THREE.CanvasTexture(canvas)
+
+    ctx.fillStyle = 'black'
+    ctx.fillRect(0, 0, width, height)
+
+    const noiseCanvas = document.createElement('canvas')
+    noiseCanvas.width = 96
+    noiseCanvas.height = 96
+    const noiseCtx = noiseCanvas.getContext('2d')
+    if (noiseCtx) {
+        const imageData = noiseCtx.createImageData(noiseCanvas.width, noiseCanvas.height)
+        const data = imageData.data
+        for (let i = 0; i < data.length; i += 4) {
+            const value = 80 + Math.random() * 140
+            data[i] = value
+            data[i + 1] = value
+            data[i + 2] = value
+            data[i + 3] = 255
+        }
+        noiseCtx.putImageData(imageData, 0, 0)
+
+        ctx.save()
+        ctx.filter = 'blur(20px)'
+        ctx.imageSmoothingEnabled = true
+        ctx.drawImage(noiseCanvas, 0, 0, width, height)
+        ctx.restore()
+
+        const mapped = ctx.getImageData(0, 0, width, height)
+        const mappedData = mapped.data
+        for (let i = 0; i < mappedData.length; i += 4) {
+            const normalized = mappedData[i] / 255
+            const eased = 0.45 + normalized * 0.5
+            const value = Math.max(0, Math.min(255, Math.round(eased * 255)))
+            mappedData[i] = value
+            mappedData[i + 1] = value
+            mappedData[i + 2] = value
+            mappedData[i + 3] = 255
+        }
+        ctx.putImageData(mapped, 0, 0)
+    }
+
+    const texture = new THREE.CanvasTexture(canvas)
+    return texture
+}
+
+/**
  * Build surface - the table where pieces are placed
  */
 export default function BuildSurface() {
     const meshRef = useRef<THREE.Mesh>(null)
+    const tableSnowEnabled = useGameStore((state) => state.tableSnowEnabled)
 
     // Create wood grain textures (memoized to avoid recreation)
     const textures = useMemo(() => {
@@ -114,7 +170,9 @@ export default function BuildSurface() {
         const apronTex = createWoodTexture(512, 128, WOOD_DARK, 0.2)
         apronTex.repeat.set(4, 1)
 
-        return { tabletopTex, legTex, apronTex }
+        const snowPatchTex = createSnowPatchTexture(1024, 1024)
+
+        return { tabletopTex, legTex, apronTex, snowPatchTex }
     }, [])
 
     // Leg positions (corners, slightly inset)
@@ -146,6 +204,42 @@ export default function BuildSurface() {
                     metalness={0.05}
                 />
             </mesh>
+
+            {tableSnowEnabled && (
+                <>
+                    <mesh
+                        position={[0, 0.011, 0]}
+                        rotation={[-Math.PI / 2, 0, 0]}
+                        receiveShadow
+                        raycast={() => { }}
+                        renderOrder={1}
+                    >
+                        <planeGeometry args={[WIDTH, DEPTH]} />
+                    <meshBasicMaterial
+                        color={SNOW_COLOR}
+                        transparent
+                        opacity={0.44}
+                        depthWrite={false}
+                    />
+                </mesh>
+                <mesh
+                        position={[0, 0.012, 0]}
+                        rotation={[-Math.PI / 2, 0, 0]}
+                        receiveShadow
+                        raycast={() => { }}
+                        renderOrder={2}
+                    >
+                        <planeGeometry args={[WIDTH, DEPTH]} />
+                    <meshBasicMaterial
+                        color={SNOW_COLOR}
+                        transparent
+                        opacity={1}
+                        alphaMap={textures.snowPatchTex}
+                        depthWrite={false}
+                    />
+                </mesh>
+                </>
+            )}
 
             {/* Tabletop edge/trim */}
             <mesh position={[0, -THICKNESS + 0.025, 0]} raycast={() => { }}>

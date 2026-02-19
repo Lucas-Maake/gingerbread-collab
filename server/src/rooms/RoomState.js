@@ -1,5 +1,76 @@
 import { nanoid } from 'nanoid'
 import { ROOM_CONFIG, USER_COLORS, BUILD_SURFACE } from '../constants/config.js'
+import { getRoofPolygons, isPointInAnyRoofPolygon } from '../utils/roofSupport.js'
+
+const DEFAULT_FENCE_SPACING = 0.5
+const VALID_SURFACE_TYPES = new Set(['ground', 'wall', 'roof'])
+const MAX_WALL_HEIGHT = 5
+const MAX_ICING_RADIUS = 1
+
+function sanitizeFenceSpacing(spacing) {
+  if (!Number.isFinite(spacing) || spacing <= 0) {
+    return DEFAULT_FENCE_SPACING
+  }
+  return spacing
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function isFiniteVector2(value) {
+  return Array.isArray(value) && value.length === 2 && value.every(Number.isFinite)
+}
+
+function isFiniteVector3(value) {
+  return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)
+}
+
+function getFenceLineNodes(start, end, spacing) {
+  const grid = sanitizeFenceSpacing(spacing)
+
+  const halfWidth = BUILD_SURFACE.WIDTH / 2
+  const halfDepth = BUILD_SURFACE.DEPTH / 2
+
+  const clampX = (value) => clamp(value, -halfWidth, halfWidth)
+  const clampZ = (value) => clamp(value, -halfDepth, halfDepth)
+
+  const startX = Math.round(clampX(start[0]) / grid)
+  const startZ = Math.round(clampZ(start[1]) / grid)
+  const endX = Math.round(clampX(end[0]) / grid)
+  const endZ = Math.round(clampZ(end[1]) / grid)
+
+  let x = startX
+  let z = startZ
+
+  const dx = Math.abs(endX - startX)
+  const dz = Math.abs(endZ - startZ)
+  const stepX = startX < endX ? 1 : -1
+  const stepZ = startZ < endZ ? 1 : -1
+  let error = dx - dz
+
+  const nodes = []
+
+  while (true) {
+    nodes.push([x * grid, z * grid])
+
+    if (x === endX && z === endZ) {
+      break
+    }
+
+    const doubledError = error * 2
+    if (doubledError > -dz) {
+      error -= dz
+      x += stepX
+    }
+    if (doubledError < dx) {
+      error += dx
+      z += stepZ
+    }
+  }
+
+  return nodes
+}
 
 /**
  * UserState - Represents a connected user in a room
@@ -61,6 +132,20 @@ export class PieceState {
     this.updatedAt = Date.now()
     this.lastValidPos = [...position]
     this.lastValidYaw = this.yaw
+  }
+
+  static fromJSON(data) {
+    const piece = new PieceState(data.type, data.spawnedBy, data.pos)
+    piece.pieceId = data.pieceId
+    piece.yaw = Number.isFinite(data.yaw) ? data.yaw : piece.yaw
+    piece.heldBy = data.heldBy ?? null
+    piece.attachedTo = data.attachedTo ?? null
+    piece.snapNormal = data.snapNormal ?? null
+    piece.version = Number.isFinite(data.version) ? data.version : 1
+    piece.lastValidPos = Array.isArray(data.pos) ? [...data.pos] : [...piece.pos]
+    piece.lastValidYaw = piece.yaw
+    piece.updatedAt = Date.now()
+    return piece
   }
 
   grab(userId) {
@@ -134,6 +219,15 @@ export class WallState {
     this.version = 1
   }
 
+  static fromJSON(data) {
+    const wall = new WallState(data.start, data.end, data.height, data.createdBy)
+    wall.wallId = data.wallId
+    wall.thickness = Number.isFinite(data.thickness) ? data.thickness : wall.thickness
+    wall.version = Number.isFinite(data.version) ? data.version : 1
+    wall.createdAt = Number.isFinite(data.createdAt) ? data.createdAt : Date.now()
+    return wall
+  }
+
   toJSON() {
     return {
       wallId: this.wallId,
@@ -160,6 +254,14 @@ export class IcingState {
     this.createdBy = createdBy
     this.createdAt = Date.now()
     this.version = 1
+  }
+
+  static fromJSON(data) {
+    const icing = new IcingState(data.points, data.radius, data.surfaceType, data.surfaceId, data.createdBy)
+    icing.icingId = data.icingId
+    icing.version = Number.isFinite(data.version) ? data.version : 1
+    icing.createdAt = Number.isFinite(data.createdAt) ? data.createdAt : Date.now()
+    return icing
   }
 
   toJSON() {
@@ -192,6 +294,62 @@ export class RoomState {
     this.createdAt = Date.now()
     this.lastActivityAt = Date.now()
     this.availableColors = [...USER_COLORS]
+  }
+
+  static fromSnapshot(snapshot) {
+    const roomId = (snapshot?.roomId || '').toUpperCase()
+    if (!roomId) {
+      return null
+    }
+
+    const room = new RoomState(roomId)
+
+    room.hostUserId = null
+    room.users.clear()
+    room.socketToUser.clear()
+    room.availableColors = [...USER_COLORS]
+
+    if (Array.isArray(snapshot?.pieces)) {
+      for (const pieceData of snapshot.pieces) {
+        if (!pieceData?.pieceId || !pieceData?.type || !Array.isArray(pieceData?.pos)) {
+          continue
+        }
+
+        const piece = PieceState.fromJSON(pieceData)
+        piece.heldBy = null // locks cannot survive process restarts
+        room.pieces.set(piece.pieceId, piece)
+        room.setOccupancy(piece)
+      }
+    }
+
+    if (Array.isArray(snapshot?.walls)) {
+      for (const wallData of snapshot.walls) {
+        if (!wallData?.wallId || !Array.isArray(wallData?.start) || !Array.isArray(wallData?.end)) {
+          continue
+        }
+
+        const wall = WallState.fromJSON(wallData)
+        room.walls.set(wall.wallId, wall)
+      }
+    }
+
+    if (Array.isArray(snapshot?.icing)) {
+      for (const icingData of snapshot.icing) {
+        if (!icingData?.icingId || !Array.isArray(icingData?.points)) {
+          continue
+        }
+
+        const icing = IcingState.fromJSON(icingData)
+        room.icing.set(icing.icingId, icing)
+      }
+    }
+
+    room.chatMessages = Array.isArray(snapshot?.chatMessages)
+      ? snapshot.chatMessages.slice(-100)
+      : []
+    room.lastActivityAt = Date.now()
+
+    return room
   }
 
   get userCount() {
@@ -342,9 +500,20 @@ export class RoomState {
     this.clearOccupancy(piece)
 
     this.pieces.delete(pieceId)
+
+    // Cascade-delete pieces snapped to this piece (legacy wall-piece support)
+    const deletedAttachedPieces = []
+    for (const [attachedPieceId, attachedPiece] of this.pieces.entries()) {
+      if (attachedPiece.attachedTo === pieceId) {
+        this.clearOccupancy(attachedPiece)
+        this.pieces.delete(attachedPieceId)
+        deletedAttachedPieces.push(attachedPieceId)
+      }
+    }
+
     this.lastActivityAt = Date.now()
 
-    return { success: true, piece }
+    return { success: true, piece, deletedAttachedPieces }
   }
 
   grabPiece(pieceId, userId) {
@@ -498,7 +667,65 @@ export class RoomState {
   }
 
   // Wall management
+  createFenceLine(start, end, spacing, userId) {
+    if (!Array.isArray(start) || start.length !== 2 ||
+      !Array.isArray(end) || end.length !== 2) {
+      return { error: 'INVALID_FENCE_DATA' }
+    }
+
+    if (!start.every(Number.isFinite) || !end.every(Number.isFinite)) {
+      return { error: 'INVALID_FENCE_DATA' }
+    }
+
+    const nodes = getFenceLineNodes(start, end, spacing)
+    if (nodes.length === 0) {
+      return { pieces: [] }
+    }
+
+    const nodesToCreate = []
+
+    for (const [x, z] of nodes) {
+      const cellKey = this.getCellKey(x, z)
+      const occupantId = this.occupancy.get(cellKey)
+      if (!occupantId) {
+        nodesToCreate.push([x, z])
+        continue
+      }
+
+      const occupant = this.pieces.get(occupantId)
+      const canReuseExistingFencePost = occupant &&
+        occupant.type === 'FENCE_POST' &&
+        occupant.heldBy === null
+
+      if (!canReuseExistingFencePost) {
+        return { error: 'CELL_OCCUPIED' }
+      }
+    }
+
+    if (this.pieceCount + nodesToCreate.length > ROOM_CONFIG.MAX_PIECES_PER_ROOM) {
+      return { error: 'PIECE_LIMIT_REACHED' }
+    }
+
+    const pieces = []
+
+    for (const [x, z] of nodesToCreate) {
+      const piece = new PieceState('FENCE_POST', userId, [x, 0, z])
+      piece.yaw = 0
+      this.pieces.set(piece.pieceId, piece)
+      this.setOccupancy(piece)
+      pieces.push(piece)
+    }
+
+    this.lastActivityAt = Date.now()
+    return { pieces }
+  }
+
   createWall(start, end, height, userId) {
+    if (!isFiniteVector2(start) || !isFiniteVector2(end) ||
+      !Number.isFinite(height) || height <= 0 || height > MAX_WALL_HEIGHT) {
+      return { error: 'INVALID_WALL_DATA' }
+    }
+
     const wall = new WallState(start, end, height, userId)
     this.walls.set(wall.wallId, wall)
     this.lastActivityAt = Date.now()
@@ -516,28 +743,49 @@ export class RoomState {
       return { error: 'NOT_OWNER' }
     }
 
-    // Find and delete all pieces attached to this wall
+    // Remove wall first so roof support checks reflect post-delete geometry.
+    this.walls.delete(wallId)
+    const roofPolygons = getRoofPolygons(this.walls)
+
+    // Find and delete all pieces attached to this wall or now-invalid roof surfaces
     const deletedPieces = []
+    const deletedRoofPieces = []
     for (const [pieceId, piece] of this.pieces.entries()) {
-      if (piece.attachedTo === wallId) {
+      const attachedToDeletedWall = piece.attachedTo === wallId
+      const roofNoLongerSupported = piece.attachedTo === 'roof' &&
+        !isPointInAnyRoofPolygon([piece.pos[0], piece.pos[2]], roofPolygons)
+
+      if (attachedToDeletedWall || roofNoLongerSupported) {
         this.clearOccupancy(piece)
         this.pieces.delete(pieceId)
         deletedPieces.push(pieceId)
+        if (roofNoLongerSupported) {
+          deletedRoofPieces.push(pieceId)
+        }
       }
     }
 
-    // Find and delete all icing attached to this wall
+    // Find and delete all icing attached to this wall or now-invalid roof surfaces
     const deletedIcing = []
+    const deletedRoofIcing = []
     for (const [icingId, icing] of this.icing.entries()) {
-      if (icing.surfaceId === wallId) {
+      const attachedToDeletedWall = icing.surfaceId === wallId
+      const roofNoLongerSupported = icing.surfaceType === 'roof' &&
+        Array.isArray(icing.points) &&
+        icing.points.length > 0 &&
+        !icing.points.some(point => isPointInAnyRoofPolygon([point[0], point[2]], roofPolygons))
+
+      if (attachedToDeletedWall || roofNoLongerSupported) {
         this.icing.delete(icingId)
         deletedIcing.push(icingId)
+        if (roofNoLongerSupported) {
+          deletedRoofIcing.push(icingId)
+        }
       }
     }
 
-    this.walls.delete(wallId)
     this.lastActivityAt = Date.now()
-    return { success: true, wall, deletedPieces, deletedIcing }
+    return { success: true, wall, deletedPieces, deletedIcing, deletedRoofPieces, deletedRoofIcing }
   }
 
   getWall(wallId) {
@@ -546,8 +794,16 @@ export class RoomState {
 
   // Icing management
   createIcing(points, radius, surfaceType, surfaceId, userId) {
-    if (points.length < 2) {
-      return { error: 'INVALID_POINTS' }
+    const hasInvalidPoint = !Array.isArray(points) ||
+      points.length < 2 ||
+      !points.every(isFiniteVector3)
+
+    const hasInvalidRadius = !Number.isFinite(radius) || radius <= 0 || radius > MAX_ICING_RADIUS
+    const hasInvalidSurfaceType = !VALID_SURFACE_TYPES.has(surfaceType)
+    const hasInvalidSurfaceId = !(surfaceId === null || typeof surfaceId === 'string')
+
+    if (hasInvalidPoint || hasInvalidRadius || hasInvalidSurfaceType || hasInvalidSurfaceId) {
+      return { error: 'INVALID_ICING_DATA' }
     }
 
     const icing = new IcingState(points, radius, surfaceType, surfaceId, userId)

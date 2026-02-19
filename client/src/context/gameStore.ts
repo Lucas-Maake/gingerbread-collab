@@ -16,9 +16,45 @@ import type {
 } from '../types'
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
-export type BuildMode = 'select' | 'wall' | 'icing'
+export type BuildMode = 'select' | 'wall' | 'fence' | 'icing'
 export type RoofStyle = 'flat' | 'pitched'
 export type TimeOfDay = 'day' | 'night'
+
+function getInitialTableSnowEnabled() {
+    if (typeof window === 'undefined') return false
+    const saved = localStorage.getItem('tableSnowEnabled')
+    return saved === 'true'
+}
+
+function getPreferredUserName(fallbackName: string | null = null) {
+    if (typeof window === 'undefined') {
+        return fallbackName || 'Guest'
+    }
+
+    const saved = localStorage.getItem('nickname')
+    const trimmed = saved?.trim()
+    if (trimmed) return trimmed
+
+    return fallbackName || 'Guest'
+}
+
+// Join orchestration state to prevent overlapping snapshot overwrites.
+let listenersInitialized = false
+let autoRejoinInFlight: Promise<any> | null = null
+let joinInFlight: Promise<any> | null = null
+let joinInFlightKey: string | null = null
+let joinRequestCounter = 0
+let latestJoinRequestId = 0
+
+function buildJoinKey(roomId: string, userName: string) {
+    return `${roomId.toUpperCase()}::${userName.trim()}`
+}
+
+function invalidateJoinRequests() {
+    latestJoinRequestId += 1
+    joinInFlight = null
+    joinInFlightKey = null
+}
 
 interface Notification {
     type: 'info' | 'success' | 'warning' | 'error'
@@ -53,6 +89,7 @@ interface GameState {
     // ==================== WALL STATE ====================
     walls: Map<string, WallState>
     wallDrawingStartPoint: [number, number] | null
+    fenceDrawingStartPoint: [number, number] | null
 
     // ==================== ICING STATE ====================
     icing: Map<string, IcingState>
@@ -64,6 +101,7 @@ interface GameState {
     error: string | null
     notification: Notification | null
     timeOfDay: TimeOfDay
+    tableSnowEnabled: boolean
 
     // ==================== CHAT STATE ====================
     chatMessages: ChatMessage[]
@@ -116,6 +154,8 @@ interface GameState {
     showNotification: (type: 'info' | 'success' | 'warning' | 'error', message: string) => void
     toggleTimeOfDay: () => void
     setTimeOfDay: (time: TimeOfDay) => void
+    toggleTableSnow: () => void
+    setTableSnowEnabled: (enabled: boolean) => void
 
     // Build Mode Actions
     setBuildMode: (mode: BuildMode) => void
@@ -128,10 +168,17 @@ interface GameState {
     // Wall Actions
     setWallDrawingStartPoint: (point: [number, number] | null) => void
     clearWallDrawingStartPoint: () => void
+    setFenceDrawingStartPoint: (point: [number, number] | null) => void
+    clearFenceDrawingStartPoint: () => void
     createWall: (start: [number, number], end: [number, number], height?: number) => Promise<WallState | null>
+    createFenceLine: (start: [number, number], end: [number, number], spacing?: number) => Promise<PieceState[]>
     deleteWall: (wallId: string) => Promise<void>
     handleWallCreated: (data: { wall: WallState }) => void
-    handleWallDeleted: (data: { wallId: string }) => void
+    handleWallDeleted: (data: {
+        wallId: string
+        deletedPieces?: string[]
+        deletedIcing?: string[]
+    }) => void
 
     // Icing Actions
     startIcingStroke: () => void
@@ -183,6 +230,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     // ==================== WALL STATE ====================
     walls: new Map(),
     wallDrawingStartPoint: null,
+    fenceDrawingStartPoint: null,
 
     // ==================== ICING STATE ====================
     icing: new Map(),
@@ -194,6 +242,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     error: null,
     notification: null,
     timeOfDay: 'day',
+    tableSnowEnabled: getInitialTableSnowEnabled(),
 
     // ==================== CHAT STATE ====================
     chatMessages: [],
@@ -215,6 +264,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     disconnect: () => {
         socket.disconnect()
+        invalidateJoinRequests()
+        autoRejoinInFlight = null
         set({
             connectionState: 'disconnected',
             roomId: null,
@@ -224,15 +275,26 @@ export const useGameStore = create<GameState>((set, get) => ({
             pieces: new Map(),
             localUser: null,
             heldPieceId: null,
-            snapInfo: null
+            snapInfo: null,
+            fenceDrawingStartPoint: null
         })
     },
 
     // Room actions
     joinRoom: async (roomId, userName) => {
-        set({ isLoading: true, error: null })
+        const normalizedRoomId = roomId.toUpperCase()
+        const joinKey = buildJoinKey(normalizedRoomId, userName)
 
-        try {
+        if (joinInFlight && joinInFlightKey === joinKey) {
+            return joinInFlight
+        }
+
+        set({ isLoading: true, error: null, connectionState: 'connecting' })
+
+        const requestId = ++joinRequestCounter
+        latestJoinRequestId = requestId
+
+        const joinPromise = (async () => {
             // Ensure connected
             if (!socket.isConnected()) {
                 socket.connect()
@@ -265,12 +327,17 @@ export const useGameStore = create<GameState>((set, get) => ({
                 })
             }
 
-            const response = await socket.joinRoom(roomId, userName)
+            const response = await socket.joinRoom(normalizedRoomId, userName)
 
             // Parse snapshot
             const { snapshot, userId, undoCount = 0 } = response
 
             if (!snapshot) throw new Error('No snapshot received')
+
+            // Ignore stale join responses that completed after a newer join started.
+            if (requestId !== latestJoinRequestId) {
+                return response
+            }
 
             // Build users map
             const usersMap = new Map<string, UserState>()
@@ -321,17 +388,33 @@ export const useGameStore = create<GameState>((set, get) => ({
             })
 
             return response
+        })()
+
+        joinInFlight = joinPromise
+        joinInFlightKey = joinKey
+
+        try {
+            return await joinPromise
         } catch (error: any) {
-            set({
-                error: error.message,
-                isLoading: false
-            })
+            if (requestId === latestJoinRequestId) {
+                set({
+                    error: error.message,
+                    isLoading: false
+                })
+            }
             throw error
+        } finally {
+            if (joinInFlight === joinPromise) {
+                joinInFlight = null
+                joinInFlightKey = null
+            }
         }
     },
 
     leaveRoom: async () => {
         await socket.leaveRoom()
+        invalidateJoinRequests()
+        autoRejoinInFlight = null
         set({
             roomId: null,
             userId: null,
@@ -348,6 +431,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             pieceCount: 0,
             buildMode: 'select',
             wallDrawingStartPoint: null,
+            fenceDrawingStartPoint: null,
             icingDrawingPoints: [],
             isDrawingIcing: false
         })
@@ -361,22 +445,49 @@ export const useGameStore = create<GameState>((set, get) => ({
             return null
         }
 
-        try {
-            const response = await socket.spawnPiece(type)
-            // Piece will be added via socket event
-            // Auto-grab: piece is immediately held by spawner (per PRD)
-            if (response.piece) {
-                const updates: Partial<GameState> = { heldPieceId: response.piece.pieceId }
-                if (response.undoCount !== undefined) updates.undoCount = response.undoCount
-                set(updates)
-                playGlobalSound(SoundType.SPAWN)
-                return response.piece
+        const trySpawnPiece = async (allowRejoinRetry: boolean): Promise<PieceState | null> => {
+            try {
+                if (autoRejoinInFlight) {
+                    await autoRejoinInFlight.catch(() => null)
+                }
+                if (joinInFlight) {
+                    await joinInFlight.catch(() => null)
+                }
+
+                const response = await socket.spawnPiece(type)
+                // Piece will be added via socket event
+                // Auto-grab: piece is immediately held by spawner (per PRD)
+                if (response.piece) {
+                    const updates: Partial<GameState> = { heldPieceId: response.piece.pieceId }
+                    if (response.undoCount !== undefined) updates.undoCount = response.undoCount
+                    set(updates)
+                    playGlobalSound(SoundType.SPAWN)
+                    return response.piece
+                }
+                return null
+            } catch (error: any) {
+                if (allowRejoinRetry && error?.message === 'NOT_IN_ROOM') {
+                    const latestState = get()
+                    if (latestState.roomId) {
+                        try {
+                            await latestState.joinRoom(
+                                latestState.roomId,
+                                getPreferredUserName(latestState.localUser?.name || null)
+                            )
+                            return await trySpawnPiece(false)
+                        } catch (rejoinError: any) {
+                            set({ error: rejoinError.message })
+                            return null
+                        }
+                    }
+                }
+
+                set({ error: error.message })
+                return null
             }
-            return null
-        } catch (error: any) {
-            set({ error: error.message })
-            return null
         }
+
+        return trySpawnPiece(true)
     },
 
     grabPiece: async (pieceId) => {
@@ -508,10 +619,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Handle piece spawned
     handlePieceSpawned: (data) => {
         const pieces = new Map(get().pieces)
+        const alreadyPresent = pieces.has(data.piece.pieceId)
         pieces.set(data.piece.pieceId, data.piece)
         set({
             pieces,
-            pieceCount: get().pieceCount + 1
+            pieceCount: alreadyPresent ? get().pieceCount : get().pieceCount + 1
         })
     },
 
@@ -554,7 +666,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Handle piece deleted
     handlePieceDeleted: (data) => {
         const pieces = new Map(get().pieces)
-        pieces.delete(data.pieceId)
+        const wasDeleted = pieces.delete(data.pieceId)
+        if (!wasDeleted) return
+
         set({
             pieces,
             pieceCount: Math.max(0, get().pieceCount - 1)
@@ -615,6 +729,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             heldPieceId: null,
             snapInfo: null,
             wallDrawingStartPoint: null,
+            fenceDrawingStartPoint: null,
             icingDrawingPoints: [],
             isDrawingIcing: false,
             undoCount: 0,
@@ -632,6 +747,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Time of day toggle
     toggleTimeOfDay: () => set({ timeOfDay: get().timeOfDay === 'day' ? 'night' : 'day' }),
     setTimeOfDay: (time) => set({ timeOfDay: time }),
+    toggleTableSnow: () => {
+        const nextValue = !get().tableSnowEnabled
+        set({ tableSnowEnabled: nextValue })
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('tableSnowEnabled', String(nextValue))
+        }
+    },
+    setTableSnowEnabled: (enabled) => {
+        set({ tableSnowEnabled: enabled })
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('tableSnowEnabled', String(enabled))
+        }
+    },
 
     // ==================== BUILD MODE ACTIONS ====================
 
@@ -640,6 +768,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         // Clear any in-progress drawing when switching modes
         if (state.wallDrawingStartPoint) {
             set({ wallDrawingStartPoint: null })
+        }
+        if (state.fenceDrawingStartPoint) {
+            set({ fenceDrawingStartPoint: null })
         }
         if (state.isDrawingIcing) {
             set({ isDrawingIcing: false, icingDrawingPoints: [] })
@@ -656,6 +787,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Wall drawing actions
     setWallDrawingStartPoint: (point) => set({ wallDrawingStartPoint: point }),
     clearWallDrawingStartPoint: () => set({ wallDrawingStartPoint: null }),
+    setFenceDrawingStartPoint: (point) => set({ fenceDrawingStartPoint: point }),
+    clearFenceDrawingStartPoint: () => set({ fenceDrawingStartPoint: null }),
 
     // Icing drawing actions
     startIcingStroke: () => set({ isDrawingIcing: true, icingDrawingPoints: [] }),
@@ -669,36 +802,124 @@ export const useGameStore = create<GameState>((set, get) => ({
     // ==================== WALL ACTIONS ====================
 
     createWall: async (start, end, height = 1.5) => {
-        try {
-            const response = await socket.createWallSegment(start, end, height)
-            // Wall will be added via socket event
-            if (response.error) throw new Error(response.error)
+        const tryCreateWall = async (allowRejoinRetry: boolean): Promise<WallState | null> => {
+            try {
+                if (autoRejoinInFlight) {
+                    await autoRejoinInFlight.catch(() => null)
+                }
+                if (joinInFlight) {
+                    await joinInFlight.catch(() => null)
+                }
 
-            if (response.success) { // Check for success flag if your socket API returns it
-                // Note: response might not contain 'wall' directly if it comes via event
-                // But based on my socket.ts, it returns { success, error }
-                // The event handleWallCreated adds it to store.
+                const response = await socket.createWallSegment(start, end, height)
+                if (response.error) throw new Error(response.error)
+
+                const updates: Partial<GameState> = {}
+                if (response.wall) {
+                    // Apply wall from ack for immediate feedback and to avoid missed-broadcast races
+                    const walls = new Map(get().walls)
+                    walls.set(response.wall.wallId, response.wall)
+                    updates.walls = walls
+                }
+                if (response.undoCount !== undefined) {
+                    updates.undoCount = response.undoCount
+                }
+                if (Object.keys(updates).length > 0) {
+                    set(updates)
+                }
+
+                playGlobalSound(SoundType.SPAWN)
+                return response.wall || null
+            } catch (error: any) {
+                if (allowRejoinRetry && error?.message === 'NOT_IN_ROOM') {
+                    const state = get()
+                    if (state.roomId) {
+                        try {
+                            await state.joinRoom(
+                                state.roomId,
+                                getPreferredUserName(state.localUser?.name || null)
+                            )
+                            return await tryCreateWall(false)
+                        } catch (rejoinError: any) {
+                            set({ error: rejoinError.message })
+                            return null
+                        }
+                    }
+                }
+
+                set({ error: error.message })
+                return null
             }
-
-            // If the socket response *does* return a wall, we can return it.
-            // Based on previous code, it seems it relied on event or response.
-            // I'll assume standard pattern: action triggers server, server broadcasts event, store updates via event.
-            // But if we want to return the wall optimistically or from response (if provided):
-            // socket.ts says createWallSegment returns { success, error }. It doesn't return the wall.
-            // So we return null here, and the component should rely on store update or just success.
-            // Wait, the previous code was: `return response.wall`. This implies socket.createWallSegment returned the wall.
-            // Let's check socket.ts again.
-            // socket.ts: `socket.emit('create_wall_segment', ... (response: { success: boolean; error?: string }) => ...`
-            // It seems my socket.ts implementation of createWallSegment might be missing the `wall` in the response type/payload?
-            // Or maybe the server indeed returns it. I'll trust the previous code and assume response might have it, but strict type says otherwise.
-            // I should update socket.ts if I want to strictly type that it returns a wall, or just return null/void here.
-            // For now, I'll return null to be safe with types, as the wall is added via event anyway.
-            playGlobalSound(SoundType.SPAWN)
-            return null
-        } catch (error: any) {
-            set({ error: error.message })
-            return null
         }
+
+        return tryCreateWall(true)
+    },
+
+    createFenceLine: async (start, end, spacing = 0.5) => {
+        const tryCreateFenceLine = async (allowRejoinRetry: boolean): Promise<PieceState[]> => {
+            try {
+                if (autoRejoinInFlight) {
+                    await autoRejoinInFlight.catch(() => null)
+                }
+                if (joinInFlight) {
+                    await joinInFlight.catch(() => null)
+                }
+
+                const response = await socket.createFenceLine(start, end, spacing)
+                if (response.error) throw new Error(response.error)
+
+                const updates: Partial<GameState> = {}
+                if (response.pieces && response.pieces.length > 0) {
+                    const pieces = new Map(get().pieces)
+                    let addedCount = 0
+
+                    for (const piece of response.pieces) {
+                        if (!pieces.has(piece.pieceId)) {
+                            addedCount += 1
+                        }
+                        pieces.set(piece.pieceId, piece)
+                    }
+
+                    updates.pieces = pieces
+                    if (addedCount > 0) {
+                        updates.pieceCount = get().pieceCount + addedCount
+                    }
+                }
+                if (response.undoCount !== undefined) {
+                    updates.undoCount = response.undoCount
+                }
+                if (Object.keys(updates).length > 0) {
+                    set(updates)
+                }
+
+                if (response.pieces && response.pieces.length > 0) {
+                    playGlobalSound(SoundType.SPAWN)
+                }
+
+                return response.pieces || []
+            } catch (error: any) {
+                if (allowRejoinRetry && error?.message === 'NOT_IN_ROOM') {
+                    const state = get()
+                    if (state.roomId) {
+                        try {
+                            await state.joinRoom(
+                                state.roomId,
+                                getPreferredUserName(state.localUser?.name || null)
+                            )
+                            return await tryCreateFenceLine(false)
+                        } catch (rejoinError: any) {
+                            set({ error: rejoinError.message })
+                            return []
+                        }
+                    }
+                }
+
+                set({ error: error.message })
+                return []
+            }
+        }
+
+        return tryCreateFenceLine(true)
     },
 
     deleteWall: async (wallId) => {
@@ -721,7 +942,44 @@ export const useGameStore = create<GameState>((set, get) => ({
     handleWallDeleted: (data) => {
         const walls = new Map(get().walls)
         walls.delete(data.wallId)
-        set({ walls })
+
+        const updates: Partial<GameState> = { walls }
+
+        if (Array.isArray(data.deletedPieces) && data.deletedPieces.length > 0) {
+            const pieces = new Map(get().pieces)
+            let deletedCount = 0
+
+            for (const pieceId of data.deletedPieces) {
+                if (pieces.delete(pieceId)) {
+                    deletedCount += 1
+                }
+            }
+
+            if (deletedCount > 0) {
+                updates.pieces = pieces
+                updates.pieceCount = Math.max(0, get().pieceCount - deletedCount)
+                if (get().heldPieceId && data.deletedPieces.includes(get().heldPieceId)) {
+                    updates.heldPieceId = null
+                }
+            }
+        }
+
+        if (Array.isArray(data.deletedIcing) && data.deletedIcing.length > 0) {
+            const icing = new Map(get().icing)
+            let changed = false
+
+            for (const icingId of data.deletedIcing) {
+                if (icing.delete(icingId)) {
+                    changed = true
+                }
+            }
+
+            if (changed) {
+                updates.icing = icing
+            }
+        }
+
+        set(updates)
     },
 
     // ==================== ICING ACTIONS ====================
@@ -814,9 +1072,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
 }))
 
-// Track if listeners have been initialized to prevent duplicates
-let listenersInitialized = false
-
 /**
  * Initialize socket event listeners
  * Call this once when app starts - prevents duplicate registration
@@ -830,11 +1085,33 @@ export function initSocketListeners() {
 
     // Use fresh store reference for each event to avoid stale closures
     socket.on('connect', () => {
-        useGameStore.setState({ connectionState: 'connected' })
+        const state = useGameStore.getState()
+        if (!state.roomId) {
+            useGameStore.setState({ connectionState: 'connected' })
+            return
+        }
+
+        if (autoRejoinInFlight) {
+            return
+        }
+
+        useGameStore.setState({ connectionState: 'connecting' })
+
+        const userName = getPreferredUserName(state.localUser?.name || null)
+        autoRejoinInFlight = state.joinRoom(state.roomId, userName)
+            .catch((error: any) => {
+                console.error('Auto-rejoin failed:', error)
+                useGameStore.setState({ error: `Reconnect failed: ${error.message}` })
+            })
+            .finally(() => {
+                autoRejoinInFlight = null
+            })
     })
 
     socket.on('disconnect', () => {
-        useGameStore.setState({ connectionState: 'disconnected' })
+        invalidateJoinRequests()
+        autoRejoinInFlight = null
+        useGameStore.setState({ connectionState: 'disconnected', isLoading: false })
     })
 
     socket.on('connect_error', () => {
@@ -873,4 +1150,6 @@ export function initSocketListeners() {
 export function cleanupSocketListeners() {
     socket.cleanup()
     listenersInitialized = false
+    invalidateJoinRequests()
+    autoRejoinInFlight = null
 }

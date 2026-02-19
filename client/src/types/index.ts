@@ -202,6 +202,13 @@ export interface CreateWallResponse {
     undoCount?: number
 }
 
+export interface CreateFenceLineResponse {
+    success: boolean
+    error?: string
+    pieces?: PieceState[]
+    undoCount?: number
+}
+
 export interface DeleteWallResponse {
     success: boolean
     error?: string

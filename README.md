@@ -127,3 +127,15 @@ Allowed origins: http://localhost:3000, http://localhost:5173, http://localhost:
 cd client
 npm run dev
 ```
+
+## Optional Persistence and Scaling
+
+The server now supports optional Redis-backed scaling and room snapshots.
+
+- Set `REDIS_URL` to enable:
+  - Socket.IO Redis adapter (multi-instance pub/sub)
+  - Redis snapshot storage for room state
+- Without `REDIS_URL`, snapshots are stored in a local JSON file (`ROOM_SNAPSHOT_FILE`).
+- Snapshot retention is configurable via `ROOM_SNAPSHOT_TTL_MS`.
+
+See `server/.env.example` for the full variable list.

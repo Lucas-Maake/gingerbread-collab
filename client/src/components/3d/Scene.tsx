@@ -1,5 +1,5 @@
-import { Suspense } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Suspense, useEffect } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
 import { OrthographicCamera, Environment } from '@react-three/drei'
 import BuildSurface from './BuildSurface'
 import Pieces from './Pieces'
@@ -12,6 +12,9 @@ import GridOverlay from './GridOverlay'
 import WallSegments from './WallSegments'
 import WallPreview from './WallPreview'
 import WallDrawingManager from './WallDrawingManager'
+import FencePreview from './FencePreview'
+import FenceDrawingManager from './FenceDrawingManager'
+import FenceRails from './FenceRails'
 import AutoRoofs from './AutoRoofs'
 import IcingStrokes from './IcingStrokes'
 import IcingDrawingManager from './IcingDrawingManager'
@@ -20,6 +23,7 @@ import ChimneySmoke from './ChimneySmoke'
 import InteriorGlow from './InteriorGlow'
 import RoofFrosting from './RoofFrosting'
 import SnapIndicator from './SnapIndicator'
+import { SCREENSHOT_REQUEST_EVENT, SCREENSHOT_RESULT_EVENT } from '../../utils/screenshotCapture'
 
 
 /**
@@ -33,8 +37,7 @@ export default function Scene() {
             gl={{
                 antialias: true,
                 alpha: false,
-                powerPreference: 'high-performance',
-                preserveDrawingBuffer: true // Required for screenshots
+                powerPreference: 'high-performance'
             }}
             style={{ background: '#1a1a2e' }}
             onCreated={({ gl }) => {
@@ -58,6 +61,9 @@ export default function Scene() {
                 {/* Camera controls */}
                 <CameraController />
 
+                {/* Screenshot capture bridge (render-on-demand capture without preserveDrawingBuffer) */}
+                <ScreenshotCaptureBridge />
+
                 {/* Interaction manager for piece manipulation */}
                 <InteractionManager />
 
@@ -76,6 +82,9 @@ export default function Scene() {
                 {/* Wall segments */}
                 <WallSegments />
 
+                {/* Fence rails between adjacent fence posts */}
+                <FenceRails />
+
                 {/* Auto-generated roofs */}
                 <AutoRoofs />
 
@@ -87,6 +96,12 @@ export default function Scene() {
 
                 {/* Wall drawing interaction manager */}
                 <WallDrawingManager />
+
+                {/* Fence preview while drawing */}
+                <FencePreview />
+
+                {/* Fence drawing interaction manager */}
+                <FenceDrawingManager />
 
                 {/* Icing strokes */}
                 <IcingStrokes />
@@ -114,6 +129,48 @@ export default function Scene() {
             </Suspense>
         </Canvas>
     )
+}
+
+function ScreenshotCaptureBridge() {
+    const { gl, scene, camera } = useThree()
+
+    useEffect(() => {
+        const handleRequest = (event: Event) => {
+            const customEvent = event as CustomEvent<{ requestId?: string }>
+            const requestId = customEvent.detail?.requestId
+            if (!requestId) {
+                return
+            }
+
+            try {
+                gl.render(scene, camera)
+                const dataUrl = gl.domElement.toDataURL('image/png')
+
+                window.dispatchEvent(new CustomEvent(SCREENSHOT_RESULT_EVENT, {
+                    detail: {
+                        requestId,
+                        success: true,
+                        dataUrl
+                    }
+                }))
+            } catch (error: any) {
+                window.dispatchEvent(new CustomEvent(SCREENSHOT_RESULT_EVENT, {
+                    detail: {
+                        requestId,
+                        success: false,
+                        error: error?.message || 'Screenshot capture failed'
+                    }
+                }))
+            }
+        }
+
+        window.addEventListener(SCREENSHOT_REQUEST_EVENT, handleRequest)
+        return () => {
+            window.removeEventListener(SCREENSHOT_REQUEST_EVENT, handleRequest)
+        }
+    }, [gl, scene, camera])
+
+    return null
 }
 
 /**

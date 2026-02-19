@@ -9,6 +9,7 @@ import type {
     RoomSnapshot,
     DeletePieceResponse,
     CreateWallResponse,
+    CreateFenceLineResponse,
     DeleteWallResponse,
     CreateIcingResponse,
     DeleteIcingResponse,
@@ -163,8 +164,34 @@ export function joinRoom(roomId: string, userName: string): Promise<JoinRoomResp
 
         // Try to retrieve previous userId for reconnection
         const previousUserId = getStoredUserId(roomId)
+        let settled = false
+
+        const onDisconnect = () => {
+            if (settled) return
+            settled = true
+            cleanup()
+            reject(new Error('Disconnected during join'))
+        }
+
+        const timeout = setTimeout(() => {
+            if (settled) return
+            settled = true
+            cleanup()
+            reject(new Error('Join room timeout'))
+        }, 8000)
+
+        const cleanup = () => {
+            clearTimeout(timeout)
+            socket?.off('disconnect', onDisconnect)
+        }
+
+        socket.on('disconnect', onDisconnect)
 
         socket.emit('join_room', { roomId, userName, previousUserId }, (response: JoinRoomResponse) => {
+            if (settled) return
+            settled = true
+            cleanup()
+
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -440,14 +467,63 @@ export function undo(): Promise<{ success: boolean; undoCount?: number; error?: 
 /**
  * Create a wall segment
  */
-export function createWallSegment(start: [number, number], end: [number, number], height = 1.5): Promise<{ success: boolean; error?: string }> {
+export function createWallSegment(start: [number, number], end: [number, number], height = 1.5): Promise<CreateWallResponse> {
     return new Promise((resolve, reject) => {
         if (!socket?.connected) {
             reject(new Error('Not connected'))
             return
         }
 
+        // Avoid hanging UI if ack is lost during connection churn
+        let settled = false
+        const timeout = setTimeout(() => {
+            if (!settled) {
+                settled = true
+                reject(new Error('Wall creation timeout'))
+            }
+        }, 5000)
+
         socket.emit('create_wall_segment', { start, end, height }, (response: CreateWallResponse) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+
+            if (response.error) {
+                reject(new Error(response.error))
+            } else {
+                resolve(response)
+            }
+        })
+    })
+}
+
+/**
+ * Create a fence line made of multiple fence posts
+ */
+export function createFenceLine(
+    start: [number, number],
+    end: [number, number],
+    spacing = 0.5
+): Promise<CreateFenceLineResponse> {
+    return new Promise((resolve, reject) => {
+        if (!socket?.connected) {
+            reject(new Error('Not connected'))
+            return
+        }
+
+        let settled = false
+        const timeout = setTimeout(() => {
+            if (!settled) {
+                settled = true
+                reject(new Error('Fence creation timeout'))
+            }
+        }, 5000)
+
+        socket.emit('create_fence_line', { start, end, spacing }, (response: CreateFenceLineResponse) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+
             if (response.error) {
                 reject(new Error(response.error))
             } else {

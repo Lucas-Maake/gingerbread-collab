@@ -14,7 +14,7 @@ interface PieceCategory {
 }
 
 // Piece categories for organization
-// Note: Walls and roofs are now drawn using the Wall tool in the BuildToolbar
+// Note: Walls, roofs, and fences are drawn via build tools instead of piece spawning.
 const PIECE_CATEGORIES: PieceCategory[] = [
     {
         name: 'Details',
@@ -67,6 +67,10 @@ export default function PieceTray() {
     const isAtLimit = pieceCount >= maxPieces
 
     const handleSpawn = async (type: PieceType) => {
+        if (type === 'FENCE_POST') {
+            setBuildMode('fence')
+            return
+        }
         if (isAtLimit) return
         // Auto-switch to select mode so the user can place the piece
         setBuildMode('select')
@@ -84,8 +88,12 @@ export default function PieceTray() {
                                 key={piece.type}
                                 className="piece-button"
                                 onClick={() => handleSpawn(piece.type)}
-                                disabled={isAtLimit}
-                                title={isAtLimit ? `Room piece limit reached (${maxPieces} max)` : `Spawn ${piece.label}`}
+                                disabled={piece.type !== 'FENCE_POST' && isAtLimit}
+                                title={
+                                    piece.type === 'FENCE_POST'
+                                        ? 'Activate fence drawing tool'
+                                        : (isAtLimit ? `Room piece limit reached (${maxPieces} max)` : `Spawn ${piece.label}`)
+                                }
                             >
                                 <span className="piece-icon">{piece.icon}</span>
                                 <span className="piece-label">{piece.label}</span>
