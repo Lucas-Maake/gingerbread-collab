@@ -6,6 +6,11 @@ const { mkdtemp, rm } = require('node:fs/promises')
 const { setTimeout: delay } = require('node:timers/promises')
 const assert = require('node:assert/strict')
 const { after, test } = require('node:test')
+const {
+    getNpmSpawnConfig,
+    getTerminationTarget,
+    shouldUseProcessGroup,
+} = require('./processTree.cjs')
 
 const repoRoot = path.resolve(__dirname, '..')
 const processes = []
@@ -24,17 +29,15 @@ function getFreePort() {
 }
 
 function startProcess(name, args, cwd, env = {}) {
-    const command = process.platform === 'win32' ? (process.env.ComSpec || 'cmd.exe') : 'npm'
-    const commandArgs = process.platform === 'win32'
-        ? ['/d', '/s', '/c', ['npm', ...args].join(' ')]
-        : args
+    const config = getNpmSpawnConfig(args)
 
-    const child = spawn(command, commandArgs, {
+    const child = spawn(config.command, config.args, {
         cwd,
         env: {
             ...process.env,
             ...env
         },
+        detached: config.detached,
         stdio: ['ignore', 'pipe', 'pipe']
     })
 
@@ -51,24 +54,57 @@ function startProcess(name, args, cwd, env = {}) {
 }
 
 async function stopProcess(entry) {
-    if (entry.child.exitCode !== null || entry.child.signalCode) {
-        return
+    const destroyPipes = () => {
+        entry.child.stdout?.destroy()
+        entry.child.stderr?.destroy()
+    }
+
+    const signalProcess = (signal) => {
+        if (process.platform === 'win32') {
+            if (signal === 'SIGTERM' && entry.child.pid) {
+                spawn('taskkill', ['/pid', String(entry.child.pid), '/T', '/F'], { stdio: 'ignore' })
+            }
+            return
+        }
+
+        if (!entry.child.pid) return
+
+        try {
+            process.kill(getTerminationTarget(entry.child.pid), signal)
+        } catch (error) {
+            if (error.code !== 'ESRCH') {
+                throw error
+            }
+        }
     }
 
     await new Promise((resolve) => {
-        entry.child.once('exit', resolve)
-
-        if (process.platform === 'win32') {
-            spawn('taskkill', ['/pid', String(entry.child.pid), '/T', '/F'], { stdio: 'ignore' })
-        } else {
-            entry.child.kill('SIGTERM')
+        let settled = false
+        const finish = () => {
+            if (settled) return
+            settled = true
+            destroyPipes()
+            resolve()
         }
+
+        if (entry.child.exitCode !== null || entry.child.signalCode) {
+            if (shouldUseProcessGroup()) {
+                signalProcess('SIGTERM')
+            }
+            setTimeout(finish, 250).unref()
+            return
+        }
+
+        entry.child.once('exit', finish)
+        signalProcess('SIGTERM')
 
         setTimeout(() => {
             if (entry.child.exitCode === null) {
-                entry.child.kill('SIGKILL')
+                signalProcess('SIGKILL')
             }
         }, 3000).unref()
+
+        setTimeout(finish, 5000).unref()
     })
 }
 
