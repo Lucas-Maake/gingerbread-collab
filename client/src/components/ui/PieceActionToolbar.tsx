@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useGameStore } from '../../context/gameStore'
-import { BUILD_SURFACE, INTERACTION } from '../../constants/buildConfig'
+import { BUILD_SURFACE } from '../../constants/buildConfig'
 import type { Normal, PieceState, PieceType, Position } from '../../types'
 import './PieceActionToolbar.css'
 
@@ -8,6 +8,16 @@ const DUPLICATE_OFFSET = 0.5
 const HALF_BUILD_SURFACE = BUILD_SURFACE.SIZE / 2
 
 type BusyAction = 'duplicate' | 'delete' | 'place' | null
+
+interface HeldPieceShortcutHudProps {
+    heldPiece: PieceState
+    userId: string | null
+    pieceCount: number
+    maxPieces: number
+    releasePiece: (pos: Position, yaw: number, attachedTo?: string | null, snapNormal?: Normal | null) => Promise<void>
+    spawnPiece: (type: PieceType) => Promise<PieceState | null>
+    deletePiece: (pieceId: string) => Promise<void>
+}
 
 function clonePosition(pos: Position): Position {
     return [pos[0], pos[1], pos[2]]
@@ -26,6 +36,13 @@ function formatPieceName(type: PieceType) {
         .split('_')
         .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
         .join(' ')
+}
+
+function isTextEntryTarget(target: EventTarget | null) {
+    return target instanceof HTMLElement && (
+        target.matches('input, textarea, select') ||
+        target.isContentEditable
+    )
 }
 
 export function getDuplicateReleasePosition(pos: Position, snapNormal: Normal | null): Position {
@@ -56,11 +73,9 @@ export default function PieceActionToolbar() {
     const userId = useGameStore((state) => state.userId)
     const pieceCount = useGameStore((state) => state.pieceCount)
     const maxPieces = useGameStore((state) => state.maxPieces)
-    const updatePieceTransform = useGameStore((state) => state.updatePieceTransform)
     const releasePiece = useGameStore((state) => state.releasePiece)
     const spawnPiece = useGameStore((state) => state.spawnPiece)
     const deletePiece = useGameStore((state) => state.deletePiece)
-    const [busyAction, setBusyAction] = useState<BusyAction>(null)
 
     const heldPiece = useMemo(() => {
         return heldPieceId ? pieces.get(heldPieceId) || null : null
@@ -70,24 +85,35 @@ export default function PieceActionToolbar() {
         return null
     }
 
+    return (
+        <HeldPieceShortcutHud
+            heldPiece={heldPiece}
+            userId={userId}
+            pieceCount={pieceCount}
+            maxPieces={maxPieces}
+            releasePiece={releasePiece}
+            spawnPiece={spawnPiece}
+            deletePiece={deletePiece}
+        />
+    )
+}
+
+function HeldPieceShortcutHud({
+    heldPiece,
+    userId,
+    pieceCount,
+    maxPieces,
+    releasePiece,
+    spawnPiece,
+    deletePiece,
+}: HeldPieceShortcutHudProps) {
+    const [busyAction, setBusyAction] = useState<BusyAction>(null)
     const canDelete = heldPiece.spawnedBy === userId
     const canDuplicate = pieceCount < maxPieces
     const isBusy = busyAction !== null
     const pieceName = formatPieceName(heldPiece.type)
 
-    const rotatePiece = (direction: 'left' | 'right') => {
-        const delta = direction === 'left'
-            ? INTERACTION.ROTATION_SPEED
-            : -INTERACTION.ROTATION_SPEED
-
-        updatePieceTransform(
-            heldPiece.pieceId,
-            clonePosition(heldPiece.pos),
-            heldPiece.yaw + delta
-        )
-    }
-
-    const placePiece = async () => {
+    const placePiece = useCallback(async () => {
         const pos = clonePosition(heldPiece.pos)
         const snapNormal = cloneNormal(heldPiece.snapNormal)
 
@@ -97,9 +123,9 @@ export default function PieceActionToolbar() {
         } finally {
             setBusyAction(null)
         }
-    }
+    }, [heldPiece, releasePiece])
 
-    const duplicatePiece = async () => {
+    const duplicatePiece = useCallback(async () => {
         if (!canDuplicate) return
 
         const source: Pick<PieceState, 'type' | 'pos' | 'yaw' | 'attachedTo' | 'snapNormal'> = {
@@ -122,9 +148,9 @@ export default function PieceActionToolbar() {
         } finally {
             setBusyAction(null)
         }
-    }
+    }, [canDuplicate, heldPiece, releasePiece, spawnPiece])
 
-    const removePiece = async () => {
+    const removePiece = useCallback(async () => {
         if (!canDelete) return
 
         setBusyAction('delete')
@@ -133,85 +159,82 @@ export default function PieceActionToolbar() {
         } finally {
             setBusyAction(null)
         }
-    }
+    }, [canDelete, deletePiece, heldPiece.pieceId])
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.repeat || isBusy || isTextEntryTarget(event.target)) {
+                return
+            }
+
+            const key = event.key.toLowerCase()
+
+            if (key === 'd') {
+                if (!canDuplicate) return
+                event.preventDefault()
+                void duplicatePiece()
+                return
+            }
+
+            if (key === 'enter') {
+                event.preventDefault()
+                void placePiece()
+                return
+            }
+
+            if (key === 'delete' || key === 'backspace') {
+                if (!canDelete) return
+                event.preventDefault()
+                void removePiece()
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [canDelete, canDuplicate, duplicatePiece, isBusy, placePiece, removePiece])
+
+    const shortcuts = [
+        { key: 'Q', label: 'Rotate L' },
+        { key: 'E', label: 'Rotate R' },
+        {
+            key: 'D',
+            label: busyAction === 'duplicate' ? 'Copying' : 'Copy',
+            disabled: !canDuplicate,
+        },
+        {
+            key: 'Enter',
+            label: busyAction === 'place' ? 'Placing' : 'Place',
+        },
+        {
+            key: 'Del',
+            label: busyAction === 'delete' ? 'Deleting' : 'Delete',
+            disabled: !canDelete,
+        },
+    ]
 
     return (
-        <div className="piece-action-toolbar" role="toolbar" aria-label="Piece actions">
+        <div
+            className="piece-action-toolbar"
+            role="status"
+            aria-label="Piece shortcuts"
+            aria-live="polite"
+        >
             <div className="piece-action-summary">
                 <span className="piece-action-kicker">Holding</span>
                 <strong>{pieceName}</strong>
             </div>
 
-            <div className="piece-action-buttons">
-                <button
-                    type="button"
-                    className="piece-action-button"
-                    onClick={() => rotatePiece('left')}
-                    disabled={isBusy}
-                    aria-label="Rotate left"
-                    title="Rotate piece left"
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M11 5.1V2L5.5 6.5 11 11V7.1c3.4.5 6 3.4 6 6.9 0 1.7-.6 3.2-1.6 4.4l1.5 1.3c1.3-1.5 2.1-3.5 2.1-5.7 0-4.6-3.5-8.4-8-8.9z" />
-                    </svg>
-                    <span>Left</span>
-                </button>
-
-                <button
-                    type="button"
-                    className="piece-action-button"
-                    onClick={() => rotatePiece('right')}
-                    disabled={isBusy}
-                    aria-label="Rotate right"
-                    title="Rotate piece right"
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M13 5.1V2l5.5 4.5L13 11V7.1c-3.4.5-6 3.4-6 6.9 0 1.7.6 3.2 1.6 4.4l-1.5 1.3C5.8 18.2 5 16.2 5 14c0-4.6 3.5-8.4 8-8.9z" />
-                    </svg>
-                    <span>Right</span>
-                </button>
-
-                <button
-                    type="button"
-                    className="piece-action-button"
-                    onClick={duplicatePiece}
-                    disabled={isBusy || !canDuplicate}
-                    aria-label="Duplicate"
-                    title={canDuplicate ? 'Duplicate piece nearby' : `Room piece limit reached (${maxPieces} max)`}
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M7 7V4c0-1.1.9-2 2-2h9c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2h-3v3c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h3zm2 0h4c1.1 0 2 .9 2 2v4h3V4H9v3zm4 2H4v9h9V9z" />
-                    </svg>
-                    <span>{busyAction === 'duplicate' ? 'Copying' : 'Copy'}</span>
-                </button>
-
-                <button
-                    type="button"
-                    className="piece-action-button"
-                    onClick={placePiece}
-                    disabled={isBusy}
-                    aria-label="Place piece"
-                    title="Place piece here"
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M9.5 16.2 5.8 12.5 4.4 13.9l5.1 5.1L20 8.5 18.6 7.1 9.5 16.2z" />
-                    </svg>
-                    <span>Place</span>
-                </button>
-
-                <button
-                    type="button"
-                    className="piece-action-button danger"
-                    onClick={removePiece}
-                    disabled={isBusy || !canDelete}
-                    aria-label="Delete"
-                    title={canDelete ? 'Delete piece' : 'Only the creator can delete this piece'}
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M7 21c-1.1 0-2-.9-2-2V7h14v12c0 1.1-.9 2-2 2H7zM8 4l1-1h6l1 1h4v2H4V4h4zm1 5v9h2V9H9zm4 0v9h2V9h-2z" />
-                    </svg>
-                    <span>Delete</span>
-                </button>
+            <div className="piece-action-shortcuts">
+                {shortcuts.map((shortcut) => (
+                    <span
+                        key={`${shortcut.key}-${shortcut.label}`}
+                        className={`piece-action-shortcut ${shortcut.disabled ? 'disabled' : ''}`}
+                        aria-disabled={shortcut.disabled ? 'true' : undefined}
+                    >
+                        <kbd>{shortcut.key}</kbd>
+                        <span>{shortcut.label}</span>
+                    </span>
+                ))}
             </div>
         </div>
     )

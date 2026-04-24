@@ -76,31 +76,40 @@ describe('PieceActionToolbar', () => {
     it('stays hidden when the local user is not holding a piece', () => {
         render(<PieceActionToolbar />)
 
-        expect(screen.queryByRole('toolbar', { name: /piece actions/i })).not.toBeInTheDocument()
+        expect(screen.queryByRole('status', { name: /piece shortcuts/i })).not.toBeInTheDocument()
     })
 
-    it('rotates the held piece using the current position and yaw', async () => {
-        const piece = holdPiece()
+    it('can appear after a piece is grabbed without changing hook order', () => {
+        const { rerender } = render(<PieceActionToolbar />)
+
+        holdPiece()
+        rerender(<PieceActionToolbar />)
+
+        expect(screen.getByRole('status', { name: /piece shortcuts/i })).toHaveTextContent('Gumdrop')
+    })
+
+    it('shows keyboard shortcuts instead of click targets while holding a piece', () => {
+        holdPiece()
 
         render(<PieceActionToolbar />)
 
-        await userEvent.click(screen.getByRole('button', { name: /rotate left/i }))
-
-        expect(storeMock.updatePieceTransform).toHaveBeenCalledWith(
-            piece.pieceId,
-            piece.pos,
-            expect.closeTo(piece.yaw + Math.PI / 8)
-        )
+        expect(screen.getByRole('status', { name: /piece shortcuts/i })).toHaveTextContent('Gumdrop')
+        expect(screen.getByText('Q')).toBeInTheDocument()
+        expect(screen.getByText('E')).toBeInTheDocument()
+        expect(screen.getByText('D')).toBeInTheDocument()
+        expect(screen.getByText('Enter')).toBeInTheDocument()
+        expect(screen.getByText('Del')).toBeInTheDocument()
+        expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
 
-    it('duplicates the held piece near the original placement', async () => {
+    it('duplicates the held piece near the original placement from the keyboard', async () => {
         const piece = holdPiece()
         const duplicate = makePiece({ pieceId: 'piece-2', pos: [0, 0, 0] })
         storeMock.spawnPiece.mockResolvedValue(duplicate)
 
         render(<PieceActionToolbar />)
 
-        await userEvent.click(screen.getByRole('button', { name: /duplicate/i }))
+        await userEvent.keyboard('d')
 
         await waitFor(() => expect(storeMock.spawnPiece).toHaveBeenCalledWith(piece.type))
         expect(storeMock.releasePiece).toHaveBeenNthCalledWith(
@@ -119,15 +128,49 @@ describe('PieceActionToolbar', () => {
         )
     })
 
-    it('only enables delete for pieces created by the local user', async () => {
+    it('places the held piece from the keyboard', async () => {
+        const piece = holdPiece()
+
+        render(<PieceActionToolbar />)
+
+        await userEvent.keyboard('{Enter}')
+
+        expect(storeMock.releasePiece).toHaveBeenCalledWith(
+            piece.pos,
+            piece.yaw,
+            piece.attachedTo,
+            piece.snapNormal
+        )
+    })
+
+    it('only deletes pieces created by the local user', async () => {
         holdPiece(makePiece({ spawnedBy: 'other-user' }))
 
         render(<PieceActionToolbar />)
 
-        const deleteButton = screen.getByRole('button', { name: /delete/i })
-        expect(deleteButton).toBeDisabled()
+        expect(screen.getByText('Delete').closest('.piece-action-shortcut')).toHaveAttribute('aria-disabled', 'true')
+        await userEvent.keyboard('{Delete}')
+        expect(storeMock.deletePiece).not.toHaveBeenCalled()
+    })
 
-        await userEvent.click(deleteButton)
+    it('ignores action shortcuts while typing in an input', async () => {
+        holdPiece()
+
+        render(
+            <>
+                <label>
+                    Chat
+                    <input />
+                </label>
+                <PieceActionToolbar />
+            </>
+        )
+
+        await userEvent.click(screen.getByLabelText('Chat'))
+        await userEvent.keyboard('d{Enter}{Delete}')
+
+        expect(storeMock.spawnPiece).not.toHaveBeenCalled()
+        expect(storeMock.releasePiece).not.toHaveBeenCalled()
         expect(storeMock.deletePiece).not.toHaveBeenCalled()
     })
 })
