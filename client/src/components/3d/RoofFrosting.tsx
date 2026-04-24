@@ -136,8 +136,6 @@ function FrostingEdge({ start, end, center }: FrostingEdgeProps) {
  */
 export default function RoofFrosting() {
     const walls = useGameStore((state) => state.walls)
-    const roofStyle = useGameStore((state) => state.roofStyle)
-    const roofPitchAngle = useGameStore((state) => state.roofPitchAngle)
 
     // Get roof polygons
     const roofPolygons = useMemo(() => {

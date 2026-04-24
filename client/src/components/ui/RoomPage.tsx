@@ -84,7 +84,7 @@ export default function RoomPage() {
         initSocketListeners()
 
         // Get fresh store functions to avoid stale closures
-        const { joinRoom, leaveRoom } = useGameStore.getState()
+        const { joinRoom } = useGameStore.getState()
 
         // Join the room
         joinRoom(roomId, userName)

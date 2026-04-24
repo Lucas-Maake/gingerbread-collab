@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
+import type { RoofStyle } from '../../context/gameStore'
 import { getRoofPolygons } from '../../utils/roofGeneration'
 import { WALL, ROOF } from '../../constants/buildConfig'
-import { RoofStyle } from '../../types'
 
 // Use centralized constants
 const WALL_HEIGHT = WALL.HEIGHT
@@ -131,7 +131,7 @@ function RoofPolygon({ vertices, roofStyle, pitchAngle }: RoofPolygonProps) {
             const dx = x - centerX
             const dz = z - centerZ
             const dist = Math.sqrt(dx * dx + dz * dz)
-            if (dist < 0.01) return [x, z]
+            if (dist < 0.01) return [x, z] as [number, number]
             const scale = (dist + ROOF_OVERHANG) / dist
             return [centerX + dx * scale, centerZ + dz * scale] as [number, number]
         })

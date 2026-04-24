@@ -3,7 +3,6 @@ import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import {
     createGingerbreadTexture,
-    createPeppermintTexture,
     createFrostingTexture,
     createStarCookieTexture,
     getCachedTexture
@@ -146,9 +145,6 @@ function GLTFModel({
     return <primitive object={clonedScene} scale={scale} />
 }
 
-// Custom geometry types that need special rendering
-const CUSTOM_GEOMETRIES = ['tree', 'gingerbreadMan', 'star', 'heart', 'snowflake', 'present', 'chimney', 'fencePost', 'licorice', 'frostingDollop', 'candyButton', 'door', 'windowSmall', 'windowLarge']
-
 /**
  * Fallback primitive geometry when model isn't available
  */
@@ -222,9 +218,13 @@ function FallbackGeometry({
 /**
  * Renders appropriate geometry based on type
  */
-function PrimitiveGeometry({ type, size }: { type: string, size: [number, number, number] }) {
+function PrimitiveGeometry({ type, size }: { type: string, size: number[] }) {
     // Ensure size is valid for R3F args
-    const safeSize: [number, number, number] = size || [1, 1, 1]
+    const safeSize: [number, number, number] = [
+        size?.[0] ?? 1,
+        size?.[1] ?? 1,
+        size?.[2] ?? 1
+    ]
 
     switch (type) {
         case 'box':
@@ -310,7 +310,6 @@ function TreeGeometry({ config, color, opacity, emissive, emissiveIntensity, cas
  */
 function GingerbreadManGeometry({ config, color, opacity, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
     const bodyColor = color || config.color
-    const frostingColor = '#FFFAF0'
     const buttonColor = '#DC143C'
 
     // Get cached gingerbread texture
@@ -892,7 +891,7 @@ function CandyButtonGeometry({ config, color, opacity = 1, emissive, emissiveInt
 /**
  * Door - gingerbread cookie door with frosting decorations
  */
-function DoorGeometry({ config, color, opacity = 1, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
+function DoorGeometry({ opacity = 1, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
     const gingerbreadColor = '#CD853F'
     const frostingColor = '#FFFAF0'
     const candyRed = '#DC143C'
@@ -1002,7 +1001,7 @@ function DoorGeometry({ config, color, opacity = 1, emissive, emissiveIntensity,
 /**
  * Small Window - frosted glass window with frame and panes
  */
-function WindowSmallGeometry({ config, color, opacity = 1, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
+function WindowSmallGeometry({ opacity = 1, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
     const frameColor = '#FFFAF0' // White frosting frame (matches door)
     const glassColor = '#A8D4E6' // Frosted pale blue glass
     const frameThickness = 0.035
@@ -1102,7 +1101,7 @@ function WindowSmallGeometry({ config, color, opacity = 1, emissive, emissiveInt
 /**
  * Large Window - frosted glass window with frame and 6 panes
  */
-function WindowLargeGeometry({ config, color, opacity = 1, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
+function WindowLargeGeometry({ opacity = 1, emissive, emissiveIntensity, castShadow, receiveShadow }: PieceModelProps) {
     const frameColor = '#FFFAF0' // White frosting frame (matches door)
     const glassColor = '#A8D4E6' // Frosted pale blue glass
     const frameThickness = 0.04

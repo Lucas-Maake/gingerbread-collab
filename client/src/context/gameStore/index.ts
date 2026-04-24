@@ -1,42 +1,17 @@
 import { create } from 'zustand'
-import * as socket from '../utils/socket'
-import { playGlobalSound, SoundType } from '../hooks/useSoundEffects'
+import { SERVER_EVENTS } from '../../../../shared/socketContracts.js'
+import * as socket from '../../utils/socket'
+import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
+import { getInitialTableSnowEnabled, getPreferredUserName } from './preferences'
+import { buildSnapshotMaps } from './snapshot'
+import type { GameState } from './types'
 import type {
     PieceState,
-    PieceType,
-    UserState,
-    WallState,
-    IcingState,
-    ChatMessage,
-    Position,
-    Normal,
     RoomSnapshot,
-    SnapInfo,
-    SurfaceType
-} from '../types'
+    WallState,
+} from '../../types'
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
-export type BuildMode = 'select' | 'wall' | 'fence' | 'icing'
-export type RoofStyle = 'flat' | 'pitched'
-export type TimeOfDay = 'day' | 'night'
-
-function getInitialTableSnowEnabled() {
-    if (typeof window === 'undefined') return false
-    const saved = localStorage.getItem('tableSnowEnabled')
-    return saved === 'true'
-}
-
-function getPreferredUserName(fallbackName: string | null = null) {
-    if (typeof window === 'undefined') {
-        return fallbackName || 'Guest'
-    }
-
-    const saved = localStorage.getItem('nickname')
-    const trimmed = saved?.trim()
-    if (trimmed) return trimmed
-
-    return fallbackName || 'Guest'
-}
+export type { BuildMode, ConnectionState, GameState, RoofStyle, TimeOfDay } from './types'
 
 // Join orchestration state to prevent overlapping snapshot overwrites.
 let listenersInitialized = false
@@ -54,149 +29,6 @@ function invalidateJoinRequests() {
     latestJoinRequestId += 1
     joinInFlight = null
     joinInFlightKey = null
-}
-
-interface Notification {
-    type: 'info' | 'success' | 'warning' | 'error'
-    message: string
-}
-
-interface GameState {
-    // ==================== CONNECTION STATE ====================
-    connectionState: ConnectionState
-    roomId: string | null
-    userId: string | null
-    hostUserId: string | null
-
-    // ==================== USER STATE ====================
-    users: Map<string, UserState>
-    localUser: UserState | null
-
-    // ==================== PIECE STATE ====================
-    pieces: Map<string, PieceState>
-    heldPieceId: string | null
-    snapInfo: SnapInfo | null
-    pieceCount: number
-    maxPieces: number
-
-    // ==================== BUILD MODE STATE ====================
-    buildMode: BuildMode
-    gridSnapEnabled: boolean
-    gridSize: number
-    roofStyle: RoofStyle
-    roofPitchAngle: number
-
-    // ==================== WALL STATE ====================
-    walls: Map<string, WallState>
-    wallDrawingStartPoint: [number, number] | null
-    fenceDrawingStartPoint: [number, number] | null
-
-    // ==================== ICING STATE ====================
-    icing: Map<string, IcingState>
-    icingDrawingPoints: Position[]
-    isDrawingIcing: boolean
-
-    // ==================== UI STATE ====================
-    isLoading: boolean
-    error: string | null
-    notification: Notification | null
-    timeOfDay: TimeOfDay
-    tableSnowEnabled: boolean
-
-    // ==================== CHAT STATE ====================
-    chatMessages: ChatMessage[]
-    isChatOpen: boolean
-    unreadChatCount: number
-
-    // ==================== UNDO STATE ====================
-    undoCount: number
-
-    // ==================== ACTIONS ====================
-
-    // Connection actions
-    setConnectionState: (state: ConnectionState) => void
-    connect: () => void
-    disconnect: () => void
-
-    // Room actions
-    joinRoom: (roomId: string, userName: string) => Promise<any>
-    leaveRoom: () => Promise<void>
-
-    // Piece actions
-    spawnPiece: (type: PieceType) => Promise<PieceState | null>
-    grabPiece: (pieceId: string) => Promise<PieceState | null>
-    releasePiece: (pos: Position, yaw: number, attachedTo?: string | null, snapNormal?: Normal | null) => Promise<void>
-    updatePieceTransform: (pieceId: string, pos: Position, yaw: number) => void
-    setSnapInfo: (snapInfo: SnapInfo | null) => void
-    deletePiece: (pieceId: string) => Promise<void>
-
-    // Cursor action
-    updateCursor: (x: number, y: number, z: number) => void
-
-    // Undo action
-    undo: () => Promise<void>
-
-    // Socket Event Handlers
-    handleUserJoined: (data: { user: UserState }) => void
-    handleUserLeft: (data: { userId: string; hostUserId?: string }) => void
-    handleCursorMoved: (data: { userId: string; cursor: Position }) => void
-    handlePieceSpawned: (data: { piece: PieceState }) => void
-    handlePieceGrabbed: (data: { pieceId: string; heldBy: string }) => void
-    handlePieceReleased: (data: { piece: PieceState }) => void
-    handlePieceMoved: (data: { pieceId: string; pos: Position; yaw: number; version: number }) => void
-    handlePieceDeleted: (data: { pieceId: string }) => void
-    handleHostChanged: (data: { hostUserId?: string }) => void
-    handleRoomReset: (data: { snapshot?: RoomSnapshot }) => void
-
-    // UI Actions
-    clearError: () => void
-    clearNotification: () => void
-    showNotification: (type: 'info' | 'success' | 'warning' | 'error', message: string) => void
-    toggleTimeOfDay: () => void
-    setTimeOfDay: (time: TimeOfDay) => void
-    toggleTableSnow: () => void
-    setTableSnowEnabled: (enabled: boolean) => void
-
-    // Build Mode Actions
-    setBuildMode: (mode: BuildMode) => void
-    toggleGridSnap: () => void
-    setGridSnapEnabled: (enabled: boolean) => void
-    toggleRoofStyle: () => void
-    setRoofStyle: (style: RoofStyle) => void
-    setRoofPitchAngle: (angle: number) => void
-
-    // Wall Actions
-    setWallDrawingStartPoint: (point: [number, number] | null) => void
-    clearWallDrawingStartPoint: () => void
-    setFenceDrawingStartPoint: (point: [number, number] | null) => void
-    clearFenceDrawingStartPoint: () => void
-    createWall: (start: [number, number], end: [number, number], height?: number) => Promise<WallState | null>
-    createFenceLine: (start: [number, number], end: [number, number], spacing?: number) => Promise<PieceState[]>
-    deleteWall: (wallId: string) => Promise<void>
-    handleWallCreated: (data: { wall: WallState }) => void
-    handleWallDeleted: (data: {
-        wallId: string
-        deletedPieces?: string[]
-        deletedIcing?: string[]
-    }) => void
-
-    // Icing Actions
-    startIcingStroke: () => void
-    addIcingPoint: (point: Position) => void
-    endIcingStroke: () => void
-    clearIcingStroke: () => void
-    createIcing: (points: Position[], radius?: number, surfaceType?: 'ground' | 'wall' | 'roof', surfaceId?: string | null) => Promise<IcingState | null>
-    deleteIcing: (icingId: string) => Promise<void>
-    handleIcingCreated: (data: { icing: IcingState }) => void
-    handleIcingDeleted: (data: { icingId: string }) => void
-    resetRoom: () => Promise<void>
-
-    // Chat Actions
-    sendChatMessage: (message: string) => Promise<void>
-    toggleChat: () => void
-    openChat: () => void
-    closeChat: () => void
-    handleChatMessage: (data: ChatMessage) => void
 }
 
 /**
@@ -339,36 +171,13 @@ export const useGameStore = create<GameState>((set, get) => ({
                 return response
             }
 
-            // Build users map
-            const usersMap = new Map<string, UserState>()
-            for (const user of snapshot.users) {
-                usersMap.set(user.userId, user)
-            }
-
-            // Build pieces map
-            const piecesMap = new Map<string, PieceState>()
-            for (const piece of snapshot.pieces) {
-                piecesMap.set(piece.pieceId, piece)
-            }
-
-            // Build walls map
-            const wallsMap = new Map<string, WallState>()
-            if (snapshot.walls) {
-                for (const wall of snapshot.walls) {
-                    wallsMap.set(wall.wallId, wall)
-                }
-            }
-
-            // Build icing map
-            const icingMap = new Map<string, IcingState>()
-            if (snapshot.icing) {
-                for (const stroke of snapshot.icing) {
-                    icingMap.set(stroke.icingId, stroke)
-                }
-            }
-
-            // Load chat history
-            const chatMessages = snapshot.chatMessages || []
+            const {
+                usersMap,
+                piecesMap,
+                wallsMap,
+                icingMap,
+                chatMessages
+            } = buildSnapshotMaps(snapshot)
 
             set({
                 roomId: snapshot.roomId,
@@ -688,34 +497,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Handle room reset
     handleRoomReset: (data) => {
         const snapshot = (data.snapshot || {}) as Partial<RoomSnapshot>
-
-        const usersMap = new Map<string, UserState>()
-        if (snapshot.users) {
-            for (const user of snapshot.users) {
-                usersMap.set(user.userId, user)
-            }
-        }
-
-        const piecesMap = new Map<string, PieceState>()
-        if (snapshot.pieces) {
-            for (const piece of snapshot.pieces) {
-                piecesMap.set(piece.pieceId, piece)
-            }
-        }
-
-        const wallsMap = new Map<string, WallState>()
-        if (snapshot.walls) {
-            for (const wall of snapshot.walls) {
-                wallsMap.set(wall.wallId, wall)
-            }
-        }
-
-        const icingMap = new Map<string, IcingState>()
-        if (snapshot.icing) {
-            for (const stroke of snapshot.icing) {
-                icingMap.set(stroke.icingId, stroke)
-            }
-        }
+        const {
+            usersMap,
+            piecesMap,
+            wallsMap,
+            icingMap,
+            chatMessages
+        } = buildSnapshotMaps(snapshot)
 
         set({
             users: usersMap,
@@ -723,7 +511,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             pieces: piecesMap,
             walls: wallsMap,
             icing: icingMap,
-            chatMessages: snapshot.chatMessages || get().chatMessages,
+            chatMessages: snapshot.chatMessages !== undefined ? chatMessages : get().chatMessages,
             pieceCount: snapshot.pieceCount || 0,
             maxPieces: snapshot.maxPieces || get().maxPieces,
             heldPieceId: null,
@@ -958,7 +746,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             if (deletedCount > 0) {
                 updates.pieces = pieces
                 updates.pieceCount = Math.max(0, get().pieceCount - deletedCount)
-                if (get().heldPieceId && data.deletedPieces.includes(get().heldPieceId)) {
+                const heldPieceId = get().heldPieceId
+                if (heldPieceId && data.deletedPieces.includes(heldPieceId)) {
                     updates.heldPieceId = null
                 }
             }
@@ -1119,29 +908,29 @@ export function initSocketListeners() {
     })
 
     // Use getState() in handlers to always get fresh store state
-    socket.on('user_joined', (data) => useGameStore.getState().handleUserJoined(data))
-    socket.on('user_left', (data) => useGameStore.getState().handleUserLeft(data))
-    socket.on('host_changed', (data) => useGameStore.getState().handleHostChanged(data))
-    socket.on('cursor_moved', (data) => useGameStore.getState().handleCursorMoved(data))
-    socket.on('piece_spawned', (data) => useGameStore.getState().handlePieceSpawned(data))
-    socket.on('piece_grabbed', (data) => useGameStore.getState().handlePieceGrabbed(data))
-    socket.on('piece_released', (data) => useGameStore.getState().handlePieceReleased(data))
-    socket.on('piece_moved', (data) => useGameStore.getState().handlePieceMoved(data))
-    socket.on('piece_deleted', (data) => useGameStore.getState().handlePieceDeleted(data))
+    socket.on(SERVER_EVENTS.USER_JOINED, (data) => useGameStore.getState().handleUserJoined(data))
+    socket.on(SERVER_EVENTS.USER_LEFT, (data) => useGameStore.getState().handleUserLeft(data))
+    socket.on(SERVER_EVENTS.HOST_CHANGED, (data) => useGameStore.getState().handleHostChanged(data))
+    socket.on(SERVER_EVENTS.CURSOR_MOVED, (data) => useGameStore.getState().handleCursorMoved(data))
+    socket.on(SERVER_EVENTS.PIECE_SPAWNED, (data) => useGameStore.getState().handlePieceSpawned(data))
+    socket.on(SERVER_EVENTS.PIECE_GRABBED, (data) => useGameStore.getState().handlePieceGrabbed(data))
+    socket.on(SERVER_EVENTS.PIECE_RELEASED, (data) => useGameStore.getState().handlePieceReleased(data))
+    socket.on(SERVER_EVENTS.PIECE_MOVED, (data) => useGameStore.getState().handlePieceMoved(data))
+    socket.on(SERVER_EVENTS.PIECE_DELETED, (data) => useGameStore.getState().handlePieceDeleted(data))
 
     // Wall events
-    socket.on('wall_segment_created', (data) => useGameStore.getState().handleWallCreated(data))
-    socket.on('wall_segment_deleted', (data) => useGameStore.getState().handleWallDeleted(data))
+    socket.on(SERVER_EVENTS.WALL_SEGMENT_CREATED, (data) => useGameStore.getState().handleWallCreated(data))
+    socket.on(SERVER_EVENTS.WALL_SEGMENT_DELETED, (data) => useGameStore.getState().handleWallDeleted(data))
 
     // Icing events
-    socket.on('icing_stroke_created', (data) => useGameStore.getState().handleIcingCreated(data))
-    socket.on('icing_stroke_deleted', (data) => useGameStore.getState().handleIcingDeleted(data))
+    socket.on(SERVER_EVENTS.ICING_STROKE_CREATED, (data) => useGameStore.getState().handleIcingCreated(data))
+    socket.on(SERVER_EVENTS.ICING_STROKE_DELETED, (data) => useGameStore.getState().handleIcingDeleted(data))
 
     // Chat events
-    socket.on('chat_message', (data) => useGameStore.getState().handleChatMessage(data))
+    socket.on(SERVER_EVENTS.CHAT_MESSAGE, (data) => useGameStore.getState().handleChatMessage(data))
 
     // Room events
-    socket.on('room_reset', (data) => useGameStore.getState().handleRoomReset(data))
+    socket.on(SERVER_EVENTS.ROOM_RESET, (data) => useGameStore.getState().handleRoomReset(data))
 }
 
 /**

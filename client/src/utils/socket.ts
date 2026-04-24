@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client'
+import { SOCKET_EVENTS } from '../../../shared/socketContracts.js'
 import type {
     PieceType,
     Position,
@@ -187,7 +188,7 @@ export function joinRoom(roomId: string, userName: string): Promise<JoinRoomResp
 
         socket.on('disconnect', onDisconnect)
 
-        socket.emit('join_room', { roomId, userName, previousUserId }, (response: JoinRoomResponse) => {
+        socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId, userName, previousUserId }, (response: JoinRoomResponse) => {
             if (settled) return
             settled = true
             cleanup()
@@ -215,7 +216,7 @@ export function leaveRoom(): Promise<{ success: boolean; error?: string }> {
             return
         }
 
-        socket.emit('leave_room', (response: { success: boolean; error?: string }) => {
+        socket.emit(SOCKET_EVENTS.LEAVE_ROOM, (response: { success: boolean; error?: string }) => {
             resolve(response)
         })
     })
@@ -231,7 +232,7 @@ export function resetRoom(): Promise<{ success: boolean; error?: string }> {
             return
         }
 
-        socket.emit('reset_room', (response: { success: boolean; error?: string }) => {
+        socket.emit(SOCKET_EVENTS.RESET_ROOM, (response: { success: boolean; error?: string }) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -251,7 +252,7 @@ export function requestSnapshot(): Promise<{ success: boolean; snapshot?: RoomSn
             return
         }
 
-        socket.emit('request_snapshot', (response: { success: boolean; snapshot?: RoomSnapshot; error?: string }) => {
+        socket.emit(SOCKET_EVENTS.REQUEST_SNAPSHOT, (response: { success: boolean; snapshot?: RoomSnapshot; error?: string }) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -273,7 +274,7 @@ export function spawnPiece(type: PieceType): Promise<SpawnPieceResponse> {
             return
         }
 
-        socket.emit('spawn_piece', { type }, (response: SpawnPieceResponse) => {
+        socket.emit(SOCKET_EVENTS.SPAWN_PIECE, { type }, (response: SpawnPieceResponse) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -295,7 +296,7 @@ export function grabPiece(pieceId: string): Promise<{ success: boolean; error?: 
         }
 
         console.log('Emitting grab_piece event for:', pieceId)
-        socket.emit('grab_piece', { pieceId }, (response: { success: boolean; error?: string }) => {
+        socket.emit(SOCKET_EVENTS.GRAB_PIECE, { pieceId }, (response: { success: boolean; error?: string }) => {
             console.log('grab_piece response received:', response)
             if (response.error) {
                 reject(new Error(response.error))
@@ -322,7 +323,7 @@ export function releasePiece(
             return
         }
 
-        socket.emit('release_piece', { pieceId, pos, yaw, attachedTo, snapNormal }, (response: ReleasePieceResponse) => {
+        socket.emit(SOCKET_EVENTS.RELEASE_PIECE, { pieceId, pos, yaw, attachedTo, snapNormal }, (response: ReleasePieceResponse) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -390,7 +391,7 @@ export function sendTransformUpdate(pieceId: string, pos: Position, yaw: number)
     transformState.lastYaw = yaw
     transformState.lastUpdateTime = now
 
-    socket.emit('transform_update', { pieceId, pos, yaw })
+    socket.emit(SOCKET_EVENTS.TRANSFORM_UPDATE, { pieceId, pos, yaw })
 }
 
 /**
@@ -403,7 +404,7 @@ export function deletePiece(pieceId: string): Promise<DeletePieceResponse> {
             return
         }
 
-        socket.emit('delete_piece', { pieceId }, (response: DeletePieceResponse) => {
+        socket.emit(SOCKET_EVENTS.DELETE_PIECE, { pieceId }, (response: DeletePieceResponse) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -437,7 +438,7 @@ export function sendCursorUpdate(x: number, y: number, z: number): void {
     }
 
     cursorState.lastUpdateTime = now
-    socket.emit('cursor_update', { x, y, z })
+    socket.emit(SOCKET_EVENTS.CURSOR_UPDATE, { x, y, z })
 }
 
 // ==================== UNDO ====================
@@ -452,7 +453,7 @@ export function undo(): Promise<{ success: boolean; undoCount?: number; error?: 
             return
         }
 
-        socket.emit('undo', (response: UndoResponse) => {
+        socket.emit(SOCKET_EVENTS.UNDO, (response: UndoResponse) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -483,7 +484,7 @@ export function createWallSegment(start: [number, number], end: [number, number]
             }
         }, 5000)
 
-        socket.emit('create_wall_segment', { start, end, height }, (response: CreateWallResponse) => {
+        socket.emit(SOCKET_EVENTS.CREATE_WALL_SEGMENT, { start, end, height }, (response: CreateWallResponse) => {
             if (settled) return
             settled = true
             clearTimeout(timeout)
@@ -519,7 +520,7 @@ export function createFenceLine(
             }
         }, 5000)
 
-        socket.emit('create_fence_line', { start, end, spacing }, (response: CreateFenceLineResponse) => {
+        socket.emit(SOCKET_EVENTS.CREATE_FENCE_LINE, { start, end, spacing }, (response: CreateFenceLineResponse) => {
             if (settled) return
             settled = true
             clearTimeout(timeout)
@@ -543,7 +544,7 @@ export function deleteWallSegment(wallId: string): Promise<{ success: boolean; e
             return
         }
 
-        socket.emit('delete_wall_segment', { wallId }, (response: DeleteWallResponse) => {
+        socket.emit(SOCKET_EVENTS.DELETE_WALL_SEGMENT, { wallId }, (response: DeleteWallResponse) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -570,7 +571,7 @@ export function createIcingStroke(
             return
         }
 
-        socket.emit('create_icing_stroke', { points, radius, surfaceType, surfaceId }, (response: CreateIcingResponse) => {
+        socket.emit(SOCKET_EVENTS.CREATE_ICING_STROKE, { points, radius, surfaceType, surfaceId }, (response: CreateIcingResponse) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -590,7 +591,7 @@ export function deleteIcingStroke(icingId: string): Promise<{ success: boolean; 
             return
         }
 
-        socket.emit('delete_icing_stroke', { icingId }, (response: DeleteIcingResponse) => {
+        socket.emit(SOCKET_EVENTS.DELETE_ICING_STROKE, { icingId }, (response: DeleteIcingResponse) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -612,7 +613,7 @@ export function sendChatMessage(message: string): Promise<{ success: boolean; er
             return
         }
 
-        socket.emit('send_chat_message', { message }, (response: { success: boolean; error?: string }) => {
+        socket.emit(SOCKET_EVENTS.SEND_CHAT_MESSAGE, { message }, (response: { success: boolean; error?: string }) => {
             if (response.error) {
                 reject(new Error(response.error))
             } else {
@@ -635,7 +636,7 @@ export function ping(): Promise<{ latency: number; serverTime: number }> {
         }
 
         const startTime = Date.now()
-        socket.emit('ping', (response: { timestamp: number }) => {
+        socket.emit(SOCKET_EVENTS.PING, (response: { timestamp: number }) => {
             const latency = Date.now() - startTime
             resolve({ latency, serverTime: response.timestamp })
         })

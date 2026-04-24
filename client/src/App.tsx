@@ -1,13 +1,22 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import LandingPage from './components/ui/LandingPage'
-import RoomPage from './components/ui/RoomPage'
+
+const RoomPage = lazy(() => import('./components/ui/RoomPage'))
 
 function App() {
     return (
         <div className="app">
             <Routes>
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/room/:roomId" element={<RoomPage />} />
+                <Route
+                    path="/room/:roomId"
+                    element={(
+                        <Suspense fallback={null}>
+                            <RoomPage />
+                        </Suspense>
+                    )}
+                />
             </Routes>
         </div>
     )
