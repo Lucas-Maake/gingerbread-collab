@@ -16,7 +16,8 @@
     "build:client": "cd client && npm run build",
     "build": "npm install --prefix client && npm install --prefix server && npm run build --prefix client",
     "smoke:local": "node --test scripts/localAppSmoke.test.cjs",
-    "check": "npm run test:shared && npm run test:scripts && npm run test:server && npm run test:client && npm run typecheck:client && npm run lint:client && npm run build:client && npm run smoke:local",
+    "smoke:railway": "node --test scripts/railwayProductionSmoke.test.cjs",
+    "check": "npm run test:shared && npm run test:scripts && npm run test:server && npm run test:client && npm run typecheck:client && npm run lint:client && npm run build:client && npm run smoke:local && npm run smoke:railway",
     "start": "cd server && npm start",
     "start:server": "cd server && npm start"
   },
