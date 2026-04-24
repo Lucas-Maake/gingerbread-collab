@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getCreateRoomErrorMessage } from '../../../../shared/userFacingErrors.js'
 import './LandingPage.css'
 
 function LandingPage() {
@@ -43,8 +44,8 @@ function LandingPage() {
             }
 
             navigate(`/room/${code}`)
-        } catch (error: any) {
-            setCreateError(error.message || 'Failed to create room')
+        } catch (error: unknown) {
+            setCreateError(getCreateRoomErrorMessage(error))
         } finally {
             setIsCreating(false)
         }
