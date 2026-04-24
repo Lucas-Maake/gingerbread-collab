@@ -14,6 +14,7 @@ import DayNightToggle from './DayNightToggle'
 import BuildToolbar from './BuildToolbar'
 import ChatPanel from './ChatPanel'
 import CameraPresets from './CameraPresets'
+import StarterTemplates from './StarterTemplates'
 import './RoomPage.css'
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -254,6 +255,9 @@ export default function RoomPage() {
 
             {/* Build Toolbar */}
             <BuildToolbar />
+
+            {/* Starter Templates */}
+            <StarterTemplates />
 
             {/* Connection Status */}
             {connectionState !== 'connected' && (

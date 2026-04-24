@@ -10,6 +10,7 @@ import type {
     UserState,
     WallState
 } from '../../types'
+import type { StarterTemplateId } from '../../templates/starterTemplates'
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
 export type BuildMode = 'select' | 'wall' | 'fence' | 'icing'
@@ -129,6 +130,7 @@ export interface GameState {
     handleIcingCreated: (data: { icing: IcingState }) => void
     handleIcingDeleted: (data: { icingId: string }) => void
     resetRoom: () => Promise<void>
+    applyStarterTemplate: (templateId: StarterTemplateId) => Promise<void>
 
     sendChatMessage: (message: string) => Promise<void>
     toggleChat: () => void
