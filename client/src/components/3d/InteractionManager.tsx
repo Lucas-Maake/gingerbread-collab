@@ -624,6 +624,11 @@ export default function InteractionManager() {
                         )
                     }
                 }
+            } else if (state.heldPieceId) {
+                const piece = state.pieces.get(state.heldPieceId)
+                if (piece) {
+                    currentRotation.current = piece.yaw || 0
+                }
             } else if (!state.heldPieceId && prevState.heldPieceId) {
                 isDragging.current = false
                 isSnapped.current = false
