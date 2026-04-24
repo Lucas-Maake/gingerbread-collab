@@ -12,6 +12,7 @@ import ResetCameraButton from './ResetCameraButton'
 import ResetRoomButton from './ResetRoomButton'
 import DayNightToggle from './DayNightToggle'
 import BuildToolbar from './BuildToolbar'
+import PieceActionToolbar from './PieceActionToolbar'
 import ChatPanel from './ChatPanel'
 import CameraPresets from './CameraPresets'
 import StarterTemplates from './StarterTemplates'
@@ -228,6 +229,9 @@ export default function RoomPage() {
 
             {/* Piece Tray */}
             <PieceTray />
+
+            {/* Piece Action Toolbar */}
+            <PieceActionToolbar />
 
             {/* Controls Overlay */}
             <div className="controls-overlay">
