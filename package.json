@@ -9,6 +9,7 @@
     "dev:server": "cd server && npm run dev",
     "test:shared": "node --test shared/userFacingErrors.test.js",
     "test:scripts": "node --test scripts/processTree.test.cjs",
+    "test:build-output": "node --test scripts/clientBuildOutput.test.cjs",
     "test:server": "npm test --prefix server",
     "test:client": "npm test --prefix client",
     "typecheck:client": "npm run typecheck --prefix client",
@@ -17,7 +18,7 @@
     "build": "npm install --prefix client && npm install --prefix server && npm run build --prefix client",
     "smoke:local": "node --test scripts/localAppSmoke.test.cjs",
     "smoke:railway": "node --test scripts/railwayProductionSmoke.test.cjs",
-    "check": "npm run test:shared && npm run test:scripts && npm run test:server && npm run test:client && npm run typecheck:client && npm run lint:client && npm run build:client && npm run smoke:local && npm run smoke:railway",
+    "check": "npm run test:shared && npm run test:scripts && npm run test:server && npm run test:client && npm run typecheck:client && npm run lint:client && npm run build:client && npm run test:build-output && npm run smoke:local && npm run smoke:railway",
     "start": "cd server && npm start",
     "start:server": "cd server && npm start"
   },
