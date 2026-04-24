@@ -19,7 +19,7 @@ const clientRequire = createRequire(path.join(repoRoot, 'client', 'package.json'
 const { chromium } = clientRequire('playwright')
 
 const processes = []
-let tempDir = null
+const tempDirs = []
 
 function getFreePort() {
     return new Promise((resolve, reject) => {
@@ -153,6 +153,13 @@ async function getBrowserDiagnostics(page, pageErrors, failedRequests) {
     ].join('\n\n')
 }
 
+function isExpectedFailedRequest(request) {
+    const failureText = request.failure()?.errorText || ''
+    const requestUrl = request.url()
+
+    return failureText === 'net::ERR_ABORTED' && /\/music\/[^/]+\.mp3$/.test(requestUrl)
+}
+
 async function waitForVisible(locator, label, page, pageErrors, failedRequests) {
     try {
         await locator.waitFor()
@@ -164,9 +171,7 @@ async function waitForVisible(locator, label, page, pageErrors, failedRequests) 
 
 after(async () => {
     await Promise.all(processes.map(stopProcess))
-    if (tempDir) {
-        await rm(tempDir, { recursive: true, force: true })
-    }
+    await Promise.all(tempDirs.map((tempDir) => rm(tempDir, { recursive: true, force: true })))
 })
 
 test('production build renders the landing UI in a real browser', async () => {
@@ -176,7 +181,8 @@ test('production build renders the landing UI in a real browser', async () => {
         'client/dist/index.html must exist; run npm run build:client before this browser smoke test'
     )
 
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'gingerbread-browser-smoke-'))
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'gingerbread-browser-smoke-'))
+    tempDirs.push(tempDir)
     const port = await getFreePort()
     const appUrl = `http://127.0.0.1:${port}`
 
@@ -202,6 +208,9 @@ test('production build renders the landing UI in a real browser', async () => {
         pageErrors.push(error.stack || error.message)
     })
     page.on('requestfailed', (request) => {
+        if (isExpectedFailedRequest(request)) {
+            return
+        }
         failedRequests.push(`${request.url()} ${request.failure()?.errorText || ''}`.trim())
     })
 
@@ -210,6 +219,71 @@ test('production build renders the landing UI in a real browser', async () => {
         assert.equal(response?.status(), 200)
         await waitForVisible(page.getByRole('heading', { name: 'Gingerbread Collab' }), 'landing heading', page, pageErrors, failedRequests)
         await waitForVisible(page.getByRole('button', { name: 'Create New Room' }), 'create room button', page, pageErrors, failedRequests)
+        assert.deepEqual(pageErrors, [])
+        assert.deepEqual(failedRequests, [])
+    } finally {
+        await browser.close()
+    }
+})
+
+test('production build can create a room and spawn a piece in a real browser', async () => {
+    assert.equal(
+        existsSync(path.join(repoRoot, 'client', 'dist', 'index.html')),
+        true,
+        'client/dist/index.html must exist; run npm run build:client before this browser smoke test'
+    )
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'gingerbread-browser-smoke-'))
+    tempDirs.push(tempDir)
+    const port = await getFreePort()
+    const appUrl = `http://127.0.0.1:${port}`
+
+    startProcess('production-browser-room-start', ['start'], repoRoot, {
+        NODE_ENV: 'production',
+        PORT: String(port),
+        CLIENT_URL: appUrl,
+        RAILWAY_PUBLIC_DOMAIN: `localhost:${port}`,
+        ROOM_SNAPSHOT_FILE: path.join(tempDir, 'room-snapshots.json'),
+    })
+
+    await waitFor('production health endpoint', async () => {
+        const response = await fetch(`${appUrl}/health`)
+        assert.equal(response.status, 200)
+    })
+
+    const browser = await chromium.launch()
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const pageErrors = []
+    const failedRequests = []
+
+    page.on('pageerror', (error) => {
+        pageErrors.push(error.stack || error.message)
+    })
+    page.on('requestfailed', (request) => {
+        if (isExpectedFailedRequest(request)) {
+            return
+        }
+        failedRequests.push(`${request.url()} ${request.failure()?.errorText || ''}`.trim())
+    })
+
+    try {
+        const response = await page.goto(appUrl, { waitUntil: 'networkidle' })
+        assert.equal(response?.status(), 200)
+
+        await page.getByLabel('Nickname (optional)').fill('Smoke')
+        await page.getByRole('button', { name: 'Create New Room' }).click()
+
+        await page.waitForURL(/\/room\/[A-Z0-9]{6}$/)
+        const roomId = page.url().match(/\/room\/([A-Z0-9]{6})$/)?.[1]
+        assert.match(roomId || '', /^[A-Z0-9]{6}$/)
+
+        await waitForVisible(page.getByRole('heading', { name: `Room: ${roomId}` }), 'room heading', page, pageErrors, failedRequests)
+        await waitForVisible(page.getByRole('button', { name: /Copy Link/ }), 'copy link button', page, pageErrors, failedRequests)
+        await waitForVisible(page.getByText(/^0\/\d+ pieces$/), 'initial piece count', page, pageErrors, failedRequests)
+
+        await page.getByRole('button', { name: /Gumdrop/ }).click()
+        await waitForVisible(page.getByText(/^1\/\d+ pieces$/), 'updated piece count after spawning a piece', page, pageErrors, failedRequests)
+
         assert.deepEqual(pageErrors, [])
         assert.deepEqual(failedRequests, [])
     } finally {
