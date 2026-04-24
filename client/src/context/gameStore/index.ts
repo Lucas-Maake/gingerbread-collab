@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { createWithEqualityFn } from 'zustand/traditional'
 import { SERVER_EVENTS } from '../../../../shared/socketContracts.js'
 import * as socket from '../../utils/socket'
 import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
@@ -34,7 +34,7 @@ function invalidateJoinRequests() {
 /**
  * Main game state store using Zustand
  */
-export const useGameStore = create<GameState>((set, get) => ({
+export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
     // ==================== CONNECTION STATE ====================
     connectionState: 'disconnected',
     roomId: null,
