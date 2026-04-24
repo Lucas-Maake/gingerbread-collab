@@ -2,6 +2,7 @@ import type {
     ChatMessage,
     IcingState,
     Normal,
+    PieceProperties,
     PieceState,
     PieceType,
     Position,
@@ -74,6 +75,7 @@ export interface GameState {
     grabPiece: (pieceId: string) => Promise<PieceState | null>
     releasePiece: (pos: Position, yaw: number, attachedTo?: string | null, snapNormal?: Normal | null) => Promise<void>
     updatePieceTransform: (pieceId: string, pos: Position, yaw: number) => void
+    updatePieceProperties: (pieceId: string, properties: PieceProperties) => Promise<void>
     setSnapInfo: (snapInfo: SnapInfo | null) => void
     deletePiece: (pieceId: string) => Promise<void>
 
@@ -88,6 +90,7 @@ export interface GameState {
     handlePieceGrabbed: (data: { pieceId: string; heldBy: string }) => void
     handlePieceReleased: (data: { piece: PieceState }) => void
     handlePieceMoved: (data: { pieceId: string; pos: Position; yaw: number; version: number }) => void
+    handlePiecePropertiesUpdated: (data: { pieceId: string; properties: PieceProperties; version: number }) => void
     handlePieceDeleted: (data: { pieceId: string }) => void
     handleHostChanged: (data: { hostUserId?: string }) => void
     handleRoomReset: (data: { snapshot?: RoomSnapshot }) => void

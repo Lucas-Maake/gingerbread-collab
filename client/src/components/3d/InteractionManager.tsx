@@ -186,12 +186,15 @@ export default function InteractionManager() {
 
         const getSnapOptions = (
             state: ReturnType<typeof useGameStore.getState>,
-            heldPiece?: { attachedTo?: string | null }
+            heldPiece?: { attachedTo?: string | null; snapPreference?: 'ground' | 'wall' | 'roof' | null }
         ) => {
             const snapSurface = state.snapInfo?.surfaceType
+            const pieceSnapPreference = heldPiece?.snapPreference === 'wall' || heldPiece?.snapPreference === 'roof'
+                ? heldPiece.snapPreference
+                : null
             const preferredSnapSurface = (snapSurface === 'wall' || snapSurface === 'roof') ? snapSurface : null
             const attachedSurface = heldPiece?.attachedTo === 'roof' ? 'roof' : heldPiece?.attachedTo ? 'wall' : null
-            const preferSurface = preferredSnapSurface ?? attachedSurface
+            const preferSurface = pieceSnapPreference ?? preferredSnapSurface ?? attachedSurface
             const wallSnapDistance = preferSurface === 'wall' ? SNAP.DISTANCE * 1.5 : SNAP.DISTANCE
             return { preferSurface, wallSnapDistance }
         }

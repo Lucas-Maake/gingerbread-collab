@@ -23,7 +23,12 @@ export function buildSnapshotMaps(snapshot: Partial<RoomSnapshot>): SnapshotMaps
 
     const piecesMap = new Map<string, PieceState>()
     for (const piece of snapshot.pieces || []) {
-        piecesMap.set(piece.pieceId, piece)
+        piecesMap.set(piece.pieceId, {
+            ...piece,
+            colorVariant: piece.colorVariant ?? null,
+            scale: piece.scale || 'normal',
+            snapPreference: piece.snapPreference ?? null
+        })
     }
 
     const wallsMap = new Map<string, WallState>()

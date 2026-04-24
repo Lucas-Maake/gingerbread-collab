@@ -9,6 +9,8 @@ import type {
     ReleasePieceResponse,
     RoomSnapshot,
     DeletePieceResponse,
+    PieceProperties,
+    UpdatePiecePropertiesResponse,
     CreateWallResponse,
     CreateFenceLineResponse,
     DeleteWallResponse,
@@ -392,6 +394,29 @@ export function sendTransformUpdate(pieceId: string, pos: Position, yaw: number)
     transformState.lastUpdateTime = now
 
     socket.emit(SOCKET_EVENTS.TRANSFORM_UPDATE, { pieceId, pos, yaw })
+}
+
+/**
+ * Update editable properties for the currently held piece.
+ */
+export function updatePieceProperties(
+    pieceId: string,
+    properties: PieceProperties
+): Promise<UpdatePiecePropertiesResponse> {
+    return new Promise((resolve, reject) => {
+        if (!socket?.connected) {
+            reject(new Error('Not connected'))
+            return
+        }
+
+        socket.emit(SOCKET_EVENTS.UPDATE_PIECE_PROPERTIES, { pieceId, properties }, (response: UpdatePiecePropertiesResponse) => {
+            if (response.error) {
+                reject(new Error(response.error))
+            } else {
+                resolve(response)
+            }
+        })
+    })
 }
 
 /**
