@@ -87,7 +87,7 @@ function LandingPage() {
                         {isCreating ? 'Creating...' : 'Create New Room'}
                     </button>
                     {createError && (
-                        <p className="landing-error">{createError}</p>
+                        <p className="landing-error" role="alert">{createError}</p>
                     )}
 
                     <div className="divider">
