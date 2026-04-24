@@ -4,6 +4,7 @@ import * as socket from '../../utils/socket'
 import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
 import { getInitialTableSnowEnabled, getPreferredUserName } from './preferences'
 import { buildSnapshotMaps } from './snapshot'
+import { applyStarterTemplate as applyStarterTemplatePlan } from '../../templates/starterTemplates'
 import type { GameState } from './types'
 import type {
     PieceState,
@@ -807,6 +808,36 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
             } else {
                 set({ error: error.message })
             }
+        }
+    },
+
+    applyStarterTemplate: async (templateId) => {
+        const state = get()
+        if (state.pieceCount > 0 || state.walls.size > 0) {
+            set({ notification: { type: 'warning', message: 'Starter templates need a blank room' } })
+            return
+        }
+
+        set({
+            error: null,
+            buildMode: 'select',
+            wallDrawingStartPoint: null,
+            fenceDrawingStartPoint: null,
+            isDrawingIcing: false,
+            icingDrawingPoints: [],
+        })
+
+        try {
+            await applyStarterTemplatePlan(templateId, {
+                createWall: (start, end, height) => get().createWall(start, end, height),
+                spawnPiece: (type) => get().spawnPiece(type),
+                releasePiece: (pos, yaw, attachedTo, snapNormal) => get().releasePiece(pos, yaw, attachedTo, snapNormal),
+            })
+            set({ notification: { type: 'success', message: 'Starter template added' } })
+        } catch (error: any) {
+            const message = error.message || 'Could not apply starter template'
+            set({ error: message })
+            throw new Error(message)
         }
     },
 
