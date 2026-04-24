@@ -37,10 +37,7 @@ export interface UseSoundEffectsResult {
  */
 export function useSoundEffects(): UseSoundEffectsResult {
     const audioContextRef = useRef<AudioContext | null>(null)
-    const isMutedRef = useRef(() => {
-        const saved = localStorage.getItem('sfxMuted')
-        return saved === 'true'
-    })
+    const isMutedRef = useRef(localStorage.getItem('sfxMuted') === 'true')
     const volumeRef = useRef(DEFAULT_VOLUME)
 
     // Initialize AudioContext on first user interaction
@@ -67,7 +64,7 @@ export function useSoundEffects(): UseSoundEffectsResult {
      */
     const playTone = useCallback((frequency: number, duration: number, type: OscillatorType = 'sine', gainValue = 0.3) => {
         const ctx = audioContextRef.current
-        if (!ctx || isMutedRef.current()) return
+        if (!ctx || isMutedRef.current) return
 
         // Resume context if suspended
         if (ctx.state === 'suspended') {
@@ -97,7 +94,7 @@ export function useSoundEffects(): UseSoundEffectsResult {
      */
     const playSequence = useCallback((notes: SoundNote[]) => {
         const ctx = audioContextRef.current
-        if (!ctx || isMutedRef.current()) return
+        if (!ctx || isMutedRef.current) return
 
         let time = ctx.currentTime
         notes.forEach(({ freq, duration, type = 'sine', gain = 0.3 }) => {
@@ -126,7 +123,7 @@ export function useSoundEffects(): UseSoundEffectsResult {
      */
     const playNoise = useCallback((duration: number, gain = 0.2) => {
         const ctx = audioContextRef.current
-        if (!ctx || isMutedRef.current()) return
+        if (!ctx || isMutedRef.current) return
 
         const bufferSize = ctx.sampleRate * duration
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
@@ -160,7 +157,7 @@ export function useSoundEffects(): UseSoundEffectsResult {
      * Play a sound effect by type
      */
     const playSound = useCallback((soundType: SoundTypeEnum) => {
-        if (isMutedRef.current()) return
+        if (isMutedRef.current) return
 
         switch (soundType) {
             case SoundType.SPAWN:
@@ -220,11 +217,8 @@ export function useSoundEffects(): UseSoundEffectsResult {
      * Toggle mute state
      */
     const toggleMute = useCallback(() => {
-        // @ts-ignore - manual override for ref
-        isMutedRef.current = !isMutedRef.current()
-        // @ts-ignore
+        isMutedRef.current = !isMutedRef.current
         localStorage.setItem('sfxMuted', isMutedRef.current.toString())
-        // @ts-ignore
         return isMutedRef.current
     }, [])
 
@@ -238,8 +232,7 @@ export function useSoundEffects(): UseSoundEffectsResult {
     /**
      * Check if muted
      */
-    // @ts-ignore
-    const isMuted = useCallback(() => isMutedRef.current(), [])
+    const isMuted = useCallback(() => isMutedRef.current, [])
 
     return {
         playSound,

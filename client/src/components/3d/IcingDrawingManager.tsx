@@ -93,7 +93,7 @@ export default function IcingDrawingManager() {
             lastPointTime.current = now
         }
 
-        const handleMouseUp = (event: MouseEvent) => {
+        const handleMouseUp = (_event?: MouseEvent) => {
             const state = useGameStore.getState()
 
             // Only handle in icing mode while drawing

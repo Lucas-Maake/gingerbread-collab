@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { getJoinRoomErrorMessage } from '../../../../shared/userFacingErrors.js'
 import { useGameStore, initSocketListeners } from '../../context/gameStore'
 import Scene from '../3d/Scene'
 import PresenceBar from './PresenceBar'
@@ -84,16 +85,16 @@ export default function RoomPage() {
         initSocketListeners()
 
         // Get fresh store functions to avoid stale closures
-        const { joinRoom, leaveRoom } = useGameStore.getState()
+        const { joinRoom } = useGameStore.getState()
 
         // Join the room
         joinRoom(roomId, userName)
             .then(() => {
                 setIsJoining(false)
             })
-            .catch((err: any) => {
+            .catch((err: unknown) => {
                 console.error('Failed to join room:', err)
-                setError(err.message)
+                setError(getJoinRoomErrorMessage(err))
                 setIsJoining(false)
             })
 
@@ -169,9 +170,14 @@ export default function RoomPage() {
     if (error) {
         return (
             <div className="room-page">
-                <div className="error-modal">
-                    <h2>Unable to Join Room</h2>
-                    <p>{getErrorMessage(error)}</p>
+                <div
+                    className="error-modal"
+                    role="alertdialog"
+                    aria-labelledby="room-error-title"
+                    aria-describedby="room-error-message"
+                >
+                    <h2 id="room-error-title">Unable to Join Room</h2>
+                    <p id="room-error-message">{error}</p>
                     <div className="error-actions">
                         <button onClick={() => navigate('/')}>Back to Home</button>
                         <button onClick={() => window.location.reload()}>Try Again</button>
@@ -285,19 +291,4 @@ export default function RoomPage() {
             <CameraPresets />
         </div>
     )
-}
-
-function getErrorMessage(error: string) {
-    switch (error) {
-        case 'ROOM_FULL':
-            return 'This room is full (6/6 users). Try creating your own room!'
-        case 'INVALID_ROOM_CODE':
-            return 'Invalid room code. Room codes are 6 characters.'
-        case 'ROOM_NOT_FOUND':
-            return 'Room not found or expired. Ask the host to create a new one.'
-        case 'Connection timeout':
-            return 'Could not connect to server. Please check your connection.'
-        default:
-            return error || 'An unexpected error occurred.'
-    }
 }

@@ -500,14 +500,6 @@ function calculateDrawnWallSnap(
     const wallDirX = wallDx / wallLength
     const wallDirZ = wallDz / wallLength
 
-    // Wall center
-    const wallCenterX = (startX + endX) / 2
-    const wallCenterZ = (startZ + endZ) / 2
-
-    // Vector from wall center to piece
-    // const toPieceX = piecePos[0] - wallCenterX
-    // const toPieceZ = piecePos[2] - wallCenterZ
-
     // Project piece position onto wall line (parametric t)
     // t = 0 at start, t = 1 at end
     const toStartX = piecePos[0] - startX

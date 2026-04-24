@@ -292,12 +292,12 @@ export function createStarCookieTexture(
 // Cache textures to avoid recreation
 const textureCache = new Map<string, THREE.CanvasTexture>()
 
-type TextureCreator = (...args: unknown[]) => THREE.CanvasTexture
+type TextureCreator = (...args: any[]) => THREE.CanvasTexture
 
 export function getCachedTexture(
     type: string,
     creator: TextureCreator,
-    ...args: unknown[]
+    ...args: any[]
 ): THREE.CanvasTexture {
     const key = `${type}-${args.join('-')}`
     if (!textureCache.has(key)) {

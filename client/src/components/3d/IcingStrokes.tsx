@@ -1,4 +1,4 @@
-import { useMemo, MouseEvent } from 'react'
+import { useMemo } from 'react'
 import * as THREE from 'three'
 import { useGameStore } from '../../context/gameStore'
 import { IcingState } from '../../types'
@@ -45,13 +45,6 @@ function IcingStroke({ icing, isOwner, onDelete }: IcingStrokeProps) {
     }, [icing.points, icing.radius])
 
     if (!geometry) return null
-
-    const handleContextMenu = (e: MouseEvent) => {
-        if (isOwner && onDelete) {
-            e.stopPropagation()
-            onDelete(icing.icingId)
-        }
-    }
 
     // @ts-ignore
     const handleContextThree = (e) => {

@@ -4,6 +4,8 @@ node_modules/
 # Build outputs
 dist/
 build/
+.codex-runtime/
+server/data/
 
 # Environment variables
 .env
