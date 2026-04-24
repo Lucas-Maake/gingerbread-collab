@@ -18,7 +18,8 @@
     "build": "npm install --prefix client && npm install --prefix server && npm run build --prefix client",
     "smoke:local": "node --test scripts/localAppSmoke.test.cjs",
     "smoke:railway": "node --test scripts/railwayProductionSmoke.test.cjs",
-    "check": "npm run test:shared && npm run test:scripts && npm run test:server && npm run test:client && npm run typecheck:client && npm run lint:client && npm run build:client && npm run test:build-output && npm run smoke:local && npm run smoke:railway",
+    "smoke:browser": "node scripts/installPlaywrightBrowser.cjs && node --test scripts/productionBrowserSmoke.test.cjs",
+    "check": "npm run test:shared && npm run test:scripts && npm run test:server && npm run test:client && npm run typecheck:client && npm run lint:client && npm run build:client && npm run test:build-output && npm run smoke:local && npm run smoke:railway && npm run smoke:browser",
     "start": "cd server && npm start",
     "start:server": "cd server && npm start"
   },
