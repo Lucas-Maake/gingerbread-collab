@@ -8,7 +8,7 @@ on:
 
 jobs:
   test-and-build:
-    name: Server tests and client build
+    name: Test and build
     runs-on: ubuntu-latest
 
     steps:
@@ -19,28 +19,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: |
-            client/package-lock.json
-            server/package-lock.json
 
       - name: Install server dependencies
         run: npm ci --prefix server
 
-      - name: Run server tests
-        run: npm test --prefix server
-
       - name: Install client dependencies
         run: npm ci --prefix client
 
-      - name: Typecheck client
-        run: npm run typecheck --prefix client
-
-      - name: Lint client JavaScript config
-        run: npm run lint --prefix client
-
-      - name: Build client
-        run: npm run build --prefix client
-
-      - name: Run local app smoke test
-        run: npm run smoke:local
+      - name: Run checks
+        run: npm run check
