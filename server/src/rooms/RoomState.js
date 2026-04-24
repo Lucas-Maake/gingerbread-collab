@@ -128,6 +128,9 @@ export class PieceState {
     this.spawnedBy = spawnedBy
     this.attachedTo = null // wallId this piece is snapped to (for windows/doors)
     this.snapNormal = null // Surface normal when snapped [x, y, z] - for correct orientation
+    this.colorVariant = null
+    this.scale = 'normal'
+    this.snapPreference = null
     this.version = 1
     this.updatedAt = Date.now()
     this.lastValidPos = [...position]
@@ -141,6 +144,9 @@ export class PieceState {
     piece.heldBy = data.heldBy ?? null
     piece.attachedTo = data.attachedTo ?? null
     piece.snapNormal = data.snapNormal ?? null
+    piece.colorVariant = Number.isInteger(data.colorVariant) ? data.colorVariant : null
+    piece.scale = ['small', 'normal', 'large'].includes(data.scale) ? data.scale : 'normal'
+    piece.snapPreference = ['ground', 'wall', 'roof'].includes(data.snapPreference) ? data.snapPreference : null
     piece.version = Number.isFinite(data.version) ? data.version : 1
     piece.lastValidPos = Array.isArray(data.pos) ? [...data.pos] : [...piece.pos]
     piece.lastValidYaw = piece.yaw
@@ -189,6 +195,20 @@ export class PieceState {
     this.version++
   }
 
+  updateProperties(properties) {
+    if (Object.prototype.hasOwnProperty.call(properties, 'colorVariant')) {
+      this.colorVariant = properties.colorVariant
+    }
+    if (Object.prototype.hasOwnProperty.call(properties, 'scale')) {
+      this.scale = properties.scale
+    }
+    if (Object.prototype.hasOwnProperty.call(properties, 'snapPreference')) {
+      this.snapPreference = properties.snapPreference
+    }
+    this.updatedAt = Date.now()
+    this.version++
+  }
+
   toJSON() {
     return {
       pieceId: this.pieceId,
@@ -199,6 +219,9 @@ export class PieceState {
       spawnedBy: this.spawnedBy,
       attachedTo: this.attachedTo,
       snapNormal: this.snapNormal,
+      colorVariant: this.colorVariant,
+      scale: this.scale,
+      snapPreference: this.snapPreference,
       version: this.version
     }
   }
@@ -598,6 +621,21 @@ export class RoomState {
     }
 
     piece.updateTransform(pos, yaw)
+    this.lastActivityAt = Date.now()
+    return { piece }
+  }
+
+  updatePieceProperties(pieceId, userId, properties) {
+    const piece = this.pieces.get(pieceId)
+    if (!piece) {
+      return { error: 'PIECE_NOT_FOUND' }
+    }
+
+    if (piece.heldBy !== userId) {
+      return { error: 'NOT_HOLDING' }
+    }
+
+    piece.updateProperties(properties)
     this.lastActivityAt = Date.now()
     return { piece }
   }

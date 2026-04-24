@@ -11,6 +11,23 @@ import type { Normal, PieceState, SurfaceType } from '../../types'
 // Re-export PIECE_CONFIGS for backward compatibility
 export { PIECE_CONFIGS }
 
+const PROPERTY_COLOR_VARIANTS = [
+    '#DC143C',
+    '#228B22',
+    '#FF69B4',
+    '#FFD700',
+    '#FFFAFA',
+    '#38BDF8',
+    '#A855F7',
+    '#FB923C',
+]
+
+const PIECE_SCALE_MULTIPLIERS = {
+    small: 0.8,
+    normal: 1,
+    large: 1.2,
+} as const
+
 /**
  * Container for all pieces in the room
  */
@@ -126,13 +143,16 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
 
     // Candy color variation based on pieceId
     const pieceColor = useMemo(() => {
+        if (Number.isInteger(piece.colorVariant)) {
+            return PROPERTY_COLOR_VARIANTS[piece.colorVariant! % PROPERTY_COLOR_VARIANTS.length]
+        }
         if (['CANDY_CANE', 'GUMDROP', 'PEPPERMINT'].includes(piece.type)) {
             // Use pieceId hash for consistent random color
             const hash = piece.pieceId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
             return CANDY_COLORS[hash % CANDY_COLORS.length]
         }
         return config.color
-    }, [piece.type, piece.pieceId, config.color])
+    }, [piece.type, piece.pieceId, piece.colorVariant, config.color])
 
     // Animate held pieces (float effect)
     useFrame((state) => {
@@ -312,9 +332,10 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
 
     // Get bounding size for hit detection and outlines
     const boundingSize: [number, number, number] = config.boundingSize || config.size
+    const pieceScale = PIECE_SCALE_MULTIPLIERS[piece.scale || 'normal'] || 1
 
     return (
-        <group position={position} rotation={rotation}>
+        <group position={position} rotation={rotation} scale={pieceScale}>
             {/* Invisible hit box for raycasting */}
             <mesh
                 ref={meshRef}

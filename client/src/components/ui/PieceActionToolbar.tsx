@@ -1,11 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useGameStore } from '../../context/gameStore'
 import { BUILD_SURFACE } from '../../constants/buildConfig'
-import type { Normal, PieceState, PieceType, Position } from '../../types'
+import type { Normal, PieceProperties, PieceScale, PieceState, PieceType, Position, SnapPreference } from '../../types'
 import './PieceActionToolbar.css'
 
 const DUPLICATE_OFFSET = 0.5
 const HALF_BUILD_SURFACE = BUILD_SURFACE.SIZE / 2
+const COLOR_VARIANT_COUNT = 8
+const PIECE_SCALES: PieceScale[] = ['small', 'normal', 'large']
+const SNAP_PREFERENCES: SnapPreference[] = [null, 'ground', 'wall', 'roof']
+const PROPERTY_PIECES = new Set<PieceType>([
+    'CANDY_CANE',
+    'GUMDROP',
+    'PEPPERMINT',
+    'GINGERBREAD_MAN',
+    'COOKIE_STAR',
+    'COOKIE_HEART',
+    'MINI_TREE',
+    'SNOWFLAKE',
+    'CANDY_BUTTON',
+    'LICORICE',
+    'FROSTING_DOLLOP',
+    'CHIMNEY',
+    'PRESENT',
+])
 
 type BusyAction = 'duplicate' | 'delete' | 'place' | null
 
@@ -17,6 +35,7 @@ interface HeldPieceShortcutHudProps {
     releasePiece: (pos: Position, yaw: number, attachedTo?: string | null, snapNormal?: Normal | null) => Promise<void>
     spawnPiece: (type: PieceType) => Promise<PieceState | null>
     deletePiece: (pieceId: string) => Promise<void>
+    updatePieceProperties: (pieceId: string, properties: PieceProperties) => Promise<void>
 }
 
 function clonePosition(pos: Position): Position {
@@ -76,6 +95,7 @@ export default function PieceActionToolbar() {
     const releasePiece = useGameStore((state) => state.releasePiece)
     const spawnPiece = useGameStore((state) => state.spawnPiece)
     const deletePiece = useGameStore((state) => state.deletePiece)
+    const updatePieceProperties = useGameStore((state) => state.updatePieceProperties)
 
     const heldPiece = useMemo(() => {
         return heldPieceId ? pieces.get(heldPieceId) || null : null
@@ -94,6 +114,7 @@ export default function PieceActionToolbar() {
             releasePiece={releasePiece}
             spawnPiece={spawnPiece}
             deletePiece={deletePiece}
+            updatePieceProperties={updatePieceProperties}
         />
     )
 }
@@ -106,10 +127,12 @@ function HeldPieceShortcutHud({
     releasePiece,
     spawnPiece,
     deletePiece,
+    updatePieceProperties,
 }: HeldPieceShortcutHudProps) {
     const [busyAction, setBusyAction] = useState<BusyAction>(null)
     const canDelete = heldPiece.spawnedBy === userId
     const canDuplicate = pieceCount < maxPieces
+    const hasEditableProperties = PROPERTY_PIECES.has(heldPiece.type)
     const isBusy = busyAction !== null
     const pieceName = formatPieceName(heldPiece.type)
 
@@ -161,6 +184,11 @@ function HeldPieceShortcutHud({
         }
     }, [canDelete, deletePiece, heldPiece.pieceId])
 
+    const updateProperties = useCallback((properties: PieceProperties) => {
+        if (!hasEditableProperties) return
+        void updatePieceProperties(heldPiece.pieceId, properties)
+    }, [hasEditableProperties, heldPiece.pieceId, updatePieceProperties])
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.defaultPrevented || event.repeat || isBusy || isTextEntryTarget(event.target)) {
@@ -186,12 +214,52 @@ function HeldPieceShortcutHud({
                 if (!canDelete) return
                 event.preventDefault()
                 void removePiece()
+                return
+            }
+
+            if (key === 'c') {
+                if (!hasEditableProperties) return
+                event.preventDefault()
+                updateProperties({
+                    colorVariant: ((heldPiece.colorVariant ?? 0) + 1) % COLOR_VARIANT_COUNT
+                })
+                return
+            }
+
+            if (key === '[' || key === ']') {
+                if (!hasEditableProperties) return
+                event.preventDefault()
+                const currentIndex = PIECE_SCALES.indexOf(heldPiece.scale || 'normal')
+                const direction = key === ']' ? 1 : -1
+                const nextIndex = (currentIndex + direction + PIECE_SCALES.length) % PIECE_SCALES.length
+                updateProperties({ scale: PIECE_SCALES[nextIndex] })
+                return
+            }
+
+            if (key === 's') {
+                if (!hasEditableProperties) return
+                event.preventDefault()
+                const currentIndex = SNAP_PREFERENCES.indexOf(heldPiece.snapPreference ?? null)
+                const nextIndex = (currentIndex + 1) % SNAP_PREFERENCES.length
+                updateProperties({ snapPreference: SNAP_PREFERENCES[nextIndex] })
             }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [canDelete, canDuplicate, duplicatePiece, isBusy, placePiece, removePiece])
+    }, [
+        canDelete,
+        canDuplicate,
+        duplicatePiece,
+        hasEditableProperties,
+        heldPiece.colorVariant,
+        heldPiece.scale,
+        heldPiece.snapPreference,
+        isBusy,
+        placePiece,
+        removePiece,
+        updateProperties
+    ])
 
     const shortcuts = [
         { key: 'Q', label: 'Rotate L' },
@@ -209,6 +277,24 @@ function HeldPieceShortcutHud({
             key: 'Del',
             label: busyAction === 'delete' ? 'Deleting' : 'Delete',
             disabled: !canDelete,
+        },
+        {
+            key: 'C',
+            label: 'Color',
+            value: hasEditableProperties ? `${(heldPiece.colorVariant ?? 0) + 1}` : '',
+            disabled: !hasEditableProperties,
+        },
+        {
+            key: '[ ]',
+            label: 'Size',
+            value: heldPiece.scale || 'normal',
+            disabled: !hasEditableProperties,
+        },
+        {
+            key: 'S',
+            label: 'Snap',
+            value: heldPiece.snapPreference || 'auto',
+            disabled: !hasEditableProperties,
         },
     ]
 
@@ -232,7 +318,10 @@ function HeldPieceShortcutHud({
                         aria-disabled={shortcut.disabled ? 'true' : undefined}
                     >
                         <kbd>{shortcut.key}</kbd>
-                        <span>{shortcut.label}</span>
+                        <span>
+                            {shortcut.label}
+                            {shortcut.value ? <em>{shortcut.value}</em> : null}
+                        </span>
                     </span>
                 ))}
             </div>

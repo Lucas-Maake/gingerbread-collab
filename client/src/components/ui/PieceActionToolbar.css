@@ -93,6 +93,13 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
+.piece-action-shortcut em {
+  margin-left: 4px;
+  color: var(--frost-blue);
+  font-style: normal;
+  text-transform: capitalize;
+}
+
 .piece-action-shortcut.disabled {
   opacity: 0.45;
 }

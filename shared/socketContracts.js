@@ -7,6 +7,7 @@ export const SOCKET_EVENTS = Object.freeze({
   GRAB_PIECE: 'grab_piece',
   RELEASE_PIECE: 'release_piece',
   TRANSFORM_UPDATE: 'transform_update',
+  UPDATE_PIECE_PROPERTIES: 'update_piece_properties',
   DELETE_PIECE: 'delete_piece',
   CURSOR_UPDATE: 'cursor_update',
   UNDO: 'undo',
@@ -29,6 +30,7 @@ export const SERVER_EVENTS = Object.freeze({
   PIECE_GRABBED: 'piece_grabbed',
   PIECE_RELEASED: 'piece_released',
   PIECE_MOVED: 'piece_moved',
+  PIECE_PROPERTIES_UPDATED: 'piece_properties_updated',
   PIECE_DELETED: 'piece_deleted',
   WALL_SEGMENT_CREATED: 'wall_segment_created',
   WALL_SEGMENT_DELETED: 'wall_segment_deleted',
@@ -67,6 +69,8 @@ export const PIECE_TYPES = Object.freeze([
 
 const PIECE_TYPE_SET = new Set(PIECE_TYPES)
 const VALID_SURFACE_TYPES = new Set(['ground', 'wall', 'roof'])
+const VALID_PIECE_SCALES = new Set(['small', 'normal', 'large'])
+const VALID_SNAP_PREFERENCES = new Set(['ground', 'wall', 'roof'])
 const DEFAULT_WALL_HEIGHT = 1.5
 const MAX_WALL_HEIGHT = 5
 const DEFAULT_FENCE_SPACING = 0.5
@@ -200,6 +204,55 @@ export function validateReleasePiecePayload(payload) {
     yaw: payload.yaw,
     attachedTo,
     snapNormal
+  })
+}
+
+export function validateUpdatePiecePropertiesPayload(payload) {
+  if (!isRecord(payload) ||
+    typeof payload.pieceId !== 'string' ||
+    payload.pieceId.trim().length === 0 ||
+    !isRecord(payload.properties)) {
+    return fail('INVALID_PIECE_PROPERTIES')
+  }
+
+  const properties = {}
+  const { colorVariant, scale, snapPreference } = payload.properties
+
+  if (colorVariant !== undefined) {
+    if (colorVariant === null) {
+      properties.colorVariant = null
+    } else if (Number.isInteger(colorVariant) && colorVariant >= 0 && colorVariant <= 7) {
+      properties.colorVariant = colorVariant
+    } else {
+      return fail('INVALID_PIECE_PROPERTIES')
+    }
+  }
+
+  if (scale !== undefined) {
+    if (VALID_PIECE_SCALES.has(scale)) {
+      properties.scale = scale
+    } else {
+      return fail('INVALID_PIECE_PROPERTIES')
+    }
+  }
+
+  if (snapPreference !== undefined) {
+    if (snapPreference === null) {
+      properties.snapPreference = null
+    } else if (VALID_SNAP_PREFERENCES.has(snapPreference)) {
+      properties.snapPreference = snapPreference
+    } else {
+      return fail('INVALID_PIECE_PROPERTIES')
+    }
+  }
+
+  if (Object.keys(properties).length === 0) {
+    return fail('INVALID_PIECE_PROPERTIES')
+  }
+
+  return ok({
+    pieceId: payload.pieceId,
+    properties
   })
 }
 

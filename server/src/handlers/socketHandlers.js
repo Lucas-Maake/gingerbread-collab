@@ -15,6 +15,7 @@ import {
   validateReleasePiecePayload,
   validateSendChatMessagePayload,
   validateSpawnPiecePayload,
+  validateUpdatePiecePropertiesPayload,
   validateTransformUpdatePayload,
   validateWallIdPayload
 } from '../../../shared/socketContracts.js'
@@ -35,6 +36,7 @@ export function registerSocketHandlers(io, socket) {
   rateLimiter.addConnection(socketId, {
     cursor: RATE_LIMITS.CURSOR_UPDATES,
     transform: RATE_LIMITS.TRANSFORM_UPDATES,
+    pieceProperties: RATE_LIMITS.PIECE_PROPERTIES,
     join: RATE_LIMITS.JOIN_ATTEMPTS,
     spawnPiece: RATE_LIMITS.SPAWN_PIECE,
     deletePiece: RATE_LIMITS.DELETE_PIECE,
@@ -344,6 +346,48 @@ export function registerSocketHandlers(io, socket) {
       yaw: result.piece.yaw,
       version: result.piece.version
     })
+  })
+
+  /**
+   * Update held piece properties
+   * @param {Object} data - { pieceId: string, properties: { colorVariant?, scale?, snapPreference? } }
+   */
+  socket.on(SOCKET_EVENTS.UPDATE_PIECE_PROPERTIES, (data, callback) => {
+    if (isRateLimited('pieceProperties', callback)) {
+      return
+    }
+
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const payload = validateUpdatePiecePropertiesPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
+    }
+
+    const { pieceId, properties } = payload.value
+    const result = room.updatePieceProperties(pieceId, user.userId, properties)
+
+    if (result.error) {
+      return callback({ error: result.error })
+    }
+
+    io.to(room.roomId).emit(SERVER_EVENTS.PIECE_PROPERTIES_UPDATED, {
+      pieceId,
+      properties,
+      version: result.piece.version,
+      updatedBy: user.userId
+    })
+
+    roomManager.markRoomDirty()
+    callback({ success: true, piece: result.piece.toJSON() })
   })
 
   /**

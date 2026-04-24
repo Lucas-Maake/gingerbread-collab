@@ -16,6 +16,7 @@ const storeMock = vi.hoisted(() => ({
     releasePiece: vi.fn(),
     spawnPiece: vi.fn(),
     deletePiece: vi.fn(),
+    updatePieceProperties: vi.fn(),
 }))
 
 vi.mock('../../context/gameStore', () => ({
@@ -24,12 +25,14 @@ vi.mock('../../context/gameStore', () => ({
         releasePiece: typeof storeMock.releasePiece
         spawnPiece: typeof storeMock.spawnPiece
         deletePiece: typeof storeMock.deletePiece
+        updatePieceProperties: typeof storeMock.updatePieceProperties
     }) => unknown) => selector({
         ...storeMock.state,
         updatePieceTransform: storeMock.updatePieceTransform,
         releasePiece: storeMock.releasePiece,
         spawnPiece: storeMock.spawnPiece,
         deletePiece: storeMock.deletePiece,
+        updatePieceProperties: storeMock.updatePieceProperties,
     }),
 }))
 
@@ -43,6 +46,9 @@ function makePiece(overrides: Partial<PieceState> = {}): PieceState {
         spawnedBy: 'user-1',
         attachedTo: null,
         snapNormal: null,
+        colorVariant: null,
+        scale: 'normal',
+        snapPreference: null,
         version: 1,
         ...overrides,
     }
@@ -70,6 +76,8 @@ beforeEach(() => {
     storeMock.spawnPiece.mockResolvedValue(null)
     storeMock.deletePiece.mockReset()
     storeMock.deletePiece.mockResolvedValue(undefined)
+    storeMock.updatePieceProperties.mockReset()
+    storeMock.updatePieceProperties.mockResolvedValue(undefined)
 })
 
 describe('PieceActionToolbar', () => {
@@ -99,7 +107,38 @@ describe('PieceActionToolbar', () => {
         expect(screen.getByText('D')).toBeInTheDocument()
         expect(screen.getByText('Enter')).toBeInTheDocument()
         expect(screen.getByText('Del')).toBeInTheDocument()
+        expect(screen.getByText('Color')).toBeInTheDocument()
+        expect(screen.getByText('Size')).toBeInTheDocument()
+        expect(screen.getByText('Snap')).toBeInTheDocument()
         expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    it('cycles editable properties from the keyboard', async () => {
+        const piece = holdPiece(makePiece({
+            colorVariant: 1,
+            scale: 'normal',
+            snapPreference: null,
+        }))
+
+        render(<PieceActionToolbar />)
+
+        await userEvent.keyboard('c]s')
+
+        expect(storeMock.updatePieceProperties).toHaveBeenNthCalledWith(
+            1,
+            piece.pieceId,
+            { colorVariant: 2 }
+        )
+        expect(storeMock.updatePieceProperties).toHaveBeenNthCalledWith(
+            2,
+            piece.pieceId,
+            { scale: 'large' }
+        )
+        expect(storeMock.updatePieceProperties).toHaveBeenNthCalledWith(
+            3,
+            piece.pieceId,
+            { snapPreference: 'ground' }
+        )
     })
 
     it('duplicates the held piece near the original placement from the keyboard', async () => {

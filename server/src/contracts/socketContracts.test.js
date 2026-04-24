@@ -4,6 +4,7 @@ import {
   validateCreateIcingStrokePayload,
   validateCreateWallSegmentPayload,
   validateJoinRoomPayload,
+  validateUpdatePiecePropertiesPayload,
   validateSendChatMessagePayload
 } from '../../../shared/socketContracts.js'
 
@@ -92,4 +93,53 @@ test('validateSendChatMessagePayload trims, caps, and rejects empty messages', (
   assert.equal(validateSendChatMessagePayload({ message: '' }).error, 'INVALID_MESSAGE')
   assert.equal(validateSendChatMessagePayload({ message: '    ' }).error, 'EMPTY_MESSAGE')
   assert.equal(validateSendChatMessagePayload({ message: 123 }).error, 'INVALID_MESSAGE')
+})
+
+test('validateUpdatePiecePropertiesPayload validates editable piece properties', () => {
+  const valid = validateUpdatePiecePropertiesPayload({
+    pieceId: 'piece-1',
+    properties: {
+      colorVariant: 3,
+      scale: 'large',
+      snapPreference: 'roof'
+    }
+  })
+
+  assert.equal(valid.error, undefined)
+  assert.deepEqual(valid.value, {
+    pieceId: 'piece-1',
+    properties: {
+      colorVariant: 3,
+      scale: 'large',
+      snapPreference: 'roof'
+    }
+  })
+
+  assert.deepEqual(
+    validateUpdatePiecePropertiesPayload({
+      pieceId: 'piece-1',
+      properties: { colorVariant: null, scale: 'normal', snapPreference: null }
+    }).value,
+    {
+      pieceId: 'piece-1',
+      properties: { colorVariant: null, scale: 'normal', snapPreference: null }
+    }
+  )
+
+  assert.equal(
+    validateUpdatePiecePropertiesPayload({ pieceId: '', properties: { scale: 'small' } }).error,
+    'INVALID_PIECE_PROPERTIES'
+  )
+  assert.equal(
+    validateUpdatePiecePropertiesPayload({ pieceId: 'piece-1', properties: { colorVariant: 99 } }).error,
+    'INVALID_PIECE_PROPERTIES'
+  )
+  assert.equal(
+    validateUpdatePiecePropertiesPayload({ pieceId: 'piece-1', properties: { scale: 'huge' } }).error,
+    'INVALID_PIECE_PROPERTIES'
+  )
+  assert.equal(
+    validateUpdatePiecePropertiesPayload({ pieceId: 'piece-1', properties: { snapPreference: 'ceiling' } }).error,
+    'INVALID_PIECE_PROPERTIES'
+  )
 })

@@ -71,6 +71,14 @@ export type PieceConfigMap = Record<PieceType, PieceConfig>
 
 export type Position = [number, number, number]
 export type Normal = [number, number, number]
+export type PieceScale = 'small' | 'normal' | 'large'
+export type SnapPreference = 'ground' | 'wall' | 'roof' | null
+
+export interface PieceProperties {
+    colorVariant?: number | null
+    scale?: PieceScale
+    snapPreference?: SnapPreference
+}
 
 export interface PieceState {
     pieceId: string
@@ -81,6 +89,9 @@ export interface PieceState {
     spawnedBy: string
     attachedTo: string | null
     snapNormal: Normal | null
+    colorVariant?: number | null
+    scale?: PieceScale
+    snapPreference?: SnapPreference
     version: number
 }
 
@@ -238,4 +249,10 @@ export interface DeletePieceResponse {
     success: boolean
     error?: string
     undoCount?: number
+}
+
+export interface UpdatePiecePropertiesResponse {
+    success: boolean
+    error?: string
+    piece?: PieceState
 }

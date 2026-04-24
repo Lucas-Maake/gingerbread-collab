@@ -8,6 +8,7 @@ import { applyStarterTemplate as applyStarterTemplatePlan } from '../../template
 import type { GameState } from './types'
 import type {
     PieceState,
+    PieceProperties,
     RoomSnapshot,
     WallState,
 } from '../../types'
@@ -358,6 +359,35 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
         socket.sendTransformUpdate(pieceId, pos, yaw)
     },
 
+    updatePieceProperties: async (pieceId, properties) => {
+        const pieces = new Map(get().pieces)
+        const piece = pieces.get(pieceId)
+        if (!piece) return
+
+        const previousPiece = { ...piece }
+        const nextPiece = {
+            ...piece,
+            ...properties,
+            version: piece.version + 1
+        }
+
+        pieces.set(pieceId, nextPiece)
+        set({ pieces })
+
+        try {
+            const response = await socket.updatePieceProperties(pieceId, properties)
+            if (response.piece) {
+                const latestPieces = new Map(get().pieces)
+                latestPieces.set(pieceId, response.piece)
+                set({ pieces: latestPieces })
+            }
+        } catch (error: any) {
+            const latestPieces = new Map(get().pieces)
+            latestPieces.set(pieceId, previousPiece)
+            set({ pieces: latestPieces, error: error.message })
+        }
+    },
+
     // Set snap info for held piece (used for decorative piece orientation)
     setSnapInfo: (snapInfo) => set({ snapInfo }),
 
@@ -469,6 +499,20 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
             piece.yaw = data.yaw
             piece.version = data.version
             pieces.set(data.pieceId, { ...piece })
+            set({ pieces })
+        }
+    },
+
+    handlePiecePropertiesUpdated: (data) => {
+        const pieces = new Map(get().pieces)
+        const piece = pieces.get(data.pieceId)
+        if (piece) {
+            const properties = data.properties as PieceProperties
+            pieces.set(data.pieceId, {
+                ...piece,
+                ...properties,
+                version: data.version
+            })
             set({ pieces })
         }
     },
@@ -947,6 +991,7 @@ export function initSocketListeners() {
     socket.on(SERVER_EVENTS.PIECE_GRABBED, (data) => useGameStore.getState().handlePieceGrabbed(data))
     socket.on(SERVER_EVENTS.PIECE_RELEASED, (data) => useGameStore.getState().handlePieceReleased(data))
     socket.on(SERVER_EVENTS.PIECE_MOVED, (data) => useGameStore.getState().handlePieceMoved(data))
+    socket.on(SERVER_EVENTS.PIECE_PROPERTIES_UPDATED, (data) => useGameStore.getState().handlePiecePropertiesUpdated(data))
     socket.on(SERVER_EVENTS.PIECE_DELETED, (data) => useGameStore.getState().handlePieceDeleted(data))
 
     // Wall events
