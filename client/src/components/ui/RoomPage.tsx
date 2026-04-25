@@ -17,6 +17,7 @@ import ChatPanel from './ChatPanel'
 import CameraPresets from './CameraPresets'
 import StarterTemplates from './StarterTemplates'
 import BuildHistoryPanel from './BuildHistoryPanel'
+import OnboardingChecklist from './OnboardingChecklist'
 import './RoomPage.css'
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -56,6 +57,7 @@ export default function RoomPage() {
     const [error, setError] = useState<string | null>(null)
     const [copyLinkState, setCopyLinkState] = useState<'idle' | 'success' | 'error'>('idle')
     const [isPhotoMode, setIsPhotoMode] = useState(false)
+    const [hasUsedPhotoMode, setHasUsedPhotoMode] = useState(false)
     const hasJoined = useRef(false)
     const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const pendingLeaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -161,6 +163,7 @@ export default function RoomPage() {
     }, [setCopyFeedback])
 
     const enterPhotoMode = useCallback(() => {
+        setHasUsedPhotoMode(true)
         setIsPhotoMode(true)
         window.dispatchEvent(new CustomEvent('setCameraPreset', {
             detail: {
@@ -293,6 +296,7 @@ export default function RoomPage() {
             )}
 
             {!isPhotoMode && <BuildHistoryPanel />}
+            {!isPhotoMode && <OnboardingChecklist hasUsedPhotoMode={hasUsedPhotoMode} />}
 
             {/* Build Toolbar */}
             {!isPhotoMode && <BuildToolbar />}

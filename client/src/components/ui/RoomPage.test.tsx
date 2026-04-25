@@ -10,6 +10,9 @@ const gameStoreMock = vi.hoisted(() => ({
         pieceCount: 0,
         maxPieces: 120,
         undoCount: 0,
+        users: new Map(),
+        pieces: new Map(),
+        walls: new Map(),
         undo: vi.fn(),
         historyEntries: [] as Array<{
             id: string
@@ -127,6 +130,9 @@ beforeEach(() => {
     gameStoreMock.state.pieceCount = 0
     gameStoreMock.state.maxPieces = 120
     gameStoreMock.state.undoCount = 0
+    gameStoreMock.state.users = new Map()
+    gameStoreMock.state.pieces = new Map()
+    gameStoreMock.state.walls = new Map()
     gameStoreMock.state.historyEntries = []
     gameStoreMock.initSocketListeners.mockReset()
     gameStoreMock.joinRoom.mockReset()
@@ -234,5 +240,49 @@ describe('RoomPage', () => {
 
         expect(document.execCommand).toHaveBeenCalledWith('copy')
         expect(screen.getByRole('button', { name: /invite copied/i })).toBeInTheDocument()
+    })
+
+    it('shows a getting started checklist for new rooms', async () => {
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+
+        renderRoomPage()
+
+        expect(await screen.findByRole('region', { name: /getting started/i })).toBeInTheDocument()
+        expect(screen.getByText('0 of 5 complete')).toBeInTheDocument()
+        expect(screen.getByText('Start with a template or draw a wall')).toBeInTheDocument()
+        expect(screen.getByText('Add roof pieces')).toBeInTheDocument()
+        expect(screen.getByText('Place a decoration')).toBeInTheDocument()
+        expect(screen.getByText('Invite a friend')).toBeInTheDocument()
+        expect(screen.getByText('Try photo mode')).toBeInTheDocument()
+    })
+
+    it('tracks onboarding progress from room state and photo mode use', async () => {
+        const user = userEvent.setup()
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+        gameStoreMock.state.users = new Map([
+            ['user-1', { userId: 'user-1', name: 'Alex', color: '#38bdf8', cursor: { x: 0, y: 0, z: 0, t: 0 }, isActive: true }],
+            ['user-2', { userId: 'user-2', name: 'Sam', color: '#ef4444', cursor: { x: 0, y: 0, z: 0, t: 0 }, isActive: true }],
+        ])
+        gameStoreMock.state.walls = new Map([
+            ['wall-1', { wallId: 'wall-1', start: [0, 0], end: [1, 0], height: 1.5, thickness: 0.1, createdBy: 'user-1', version: 1 }],
+        ])
+        gameStoreMock.state.pieces = new Map([
+            ['roof-1', { pieceId: 'roof-1', type: 'ROOF_LEFT', pos: [0, 0, 0], yaw: 0, heldBy: null, spawnedBy: 'user-1', attachedTo: null, snapNormal: null, version: 1 }],
+            ['gumdrop-1', { pieceId: 'gumdrop-1', type: 'GUMDROP', pos: [0, 0, 0], yaw: 0, heldBy: null, spawnedBy: 'user-1', attachedTo: null, snapNormal: null, version: 1 }],
+        ])
+
+        renderRoomPage()
+
+        expect(await screen.findByText('4 of 5 complete')).toBeInTheDocument()
+        expect(screen.getByLabelText('Completed: Start with a template or draw a wall')).toBeInTheDocument()
+        expect(screen.getByLabelText('Completed: Add roof pieces')).toBeInTheDocument()
+        expect(screen.getByLabelText('Completed: Place a decoration')).toBeInTheDocument()
+        expect(screen.getByLabelText('Completed: Invite a friend')).toBeInTheDocument()
+
+        await user.click(screen.getByRole('button', { name: /photo mode/i }))
+        await user.click(screen.getByRole('button', { name: /exit photo mode/i }))
+
+        expect(screen.getByText('5 of 5 complete')).toBeInTheDocument()
+        expect(screen.getByText('Ready for a snapshot')).toBeInTheDocument()
     })
 })
