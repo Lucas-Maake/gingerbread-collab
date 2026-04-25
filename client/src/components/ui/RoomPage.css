@@ -205,7 +205,9 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 120px;
+  min-height: 120px;
+  height: auto;
+  box-sizing: border-box;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.95));
   backdrop-filter: blur(16px);
   display: flex;
@@ -219,8 +221,9 @@
 /* Controls Overlay */
 .controls-overlay {
   position: absolute;
-  bottom: 140px;
+  bottom: 190px;
   left: var(--spacing-md);
+  max-width: min(380px, calc(100vw - 32px));
   background: linear-gradient(145deg, rgba(30, 58, 95, 0.85), rgba(15, 23, 42, 0.9));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -262,6 +265,56 @@
   z-index: 100;
   box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 1080px) {
+  .controls-overlay {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) {
+  .controls-overlay {
+    left: var(--spacing-md);
+    max-width: min(304px, calc(100vw - 32px));
+    padding: 12px;
+  }
+
+  .controls-hint {
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .controls-hint p {
+    margin: 2px 0;
+  }
+
+  .undo-button,
+  .build-history {
+    display: none;
+  }
+}
+
+@media (min-aspect-ratio: 3/1) {
+  .controls-overlay {
+    left: var(--spacing-md);
+    max-width: min(304px, calc(100vw - 32px));
+    padding: 12px;
+  }
+
+  .controls-hint {
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .controls-hint p {
+    margin: 2px 0;
+  }
+
+  .undo-button,
+  .build-history {
+    display: none;
+  }
 }
 
 .undo-button:hover {

@@ -2,7 +2,7 @@
 
 .build-toolbar {
   position: absolute;
-  top: 120px;
+  top: 170px;
   left: var(--spacing-md);
   background: linear-gradient(145deg, rgba(30, 58, 95, 0.85), rgba(15, 23, 42, 0.9));
   backdrop-filter: blur(16px);
@@ -159,4 +159,16 @@
   filter: blur(6px);
   opacity: 0.4;
   z-index: -1;
+}
+
+@media (max-height: 760px) {
+  .build-toolbar {
+    display: none;
+  }
+}
+
+@media (min-aspect-ratio: 3/1) {
+  .build-toolbar {
+    display: none;
+  }
 }
