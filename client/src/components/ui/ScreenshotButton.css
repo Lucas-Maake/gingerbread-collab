@@ -2,7 +2,7 @@
 
 .screenshot-button {
   position: absolute;
-  bottom: 140px;
+  bottom: 160px;
   right: var(--spacing-md);
   background: linear-gradient(135deg, var(--pine-green) 0%, #166534 100%);
   color: white;

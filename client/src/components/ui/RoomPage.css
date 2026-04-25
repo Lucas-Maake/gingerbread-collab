@@ -221,7 +221,7 @@
 /* Controls Overlay */
 .controls-overlay {
   position: absolute;
-  bottom: 140px;
+  bottom: 160px;
   left: var(--spacing-md);
   max-width: min(380px, calc(100vw - 32px));
   background: linear-gradient(145deg, rgba(30, 58, 95, 0.85), rgba(15, 23, 42, 0.9));
@@ -276,7 +276,6 @@
 @media (max-height: 760px) {
   .controls-overlay {
     left: var(--spacing-md);
-    bottom: 160px;
     max-width: min(304px, calc(100vw - 32px));
     padding: 12px;
   }
@@ -299,7 +298,6 @@
 @media (min-aspect-ratio: 3/1) {
   .controls-overlay {
     left: var(--spacing-md);
-    bottom: 160px;
     max-width: min(304px, calc(100vw - 32px));
     padding: 12px;
   }
