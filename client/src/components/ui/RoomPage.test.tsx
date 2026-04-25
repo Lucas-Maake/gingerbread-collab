@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import RoomPage from './RoomPage'
@@ -44,6 +45,58 @@ vi.mock('../3d/Scene', () => ({
     default: () => null,
 }))
 
+vi.mock('./PresenceBar', () => ({
+    default: () => <div data-testid="presence-bar">Presence</div>,
+}))
+
+vi.mock('./PieceTray', () => ({
+    default: () => <div data-testid="piece-tray">Piece Tray</div>,
+}))
+
+vi.mock('./MuteButton', () => ({
+    default: () => <button type="button">Music</button>,
+}))
+
+vi.mock('./SfxMuteButton', () => ({
+    default: () => <button type="button">SFX</button>,
+}))
+
+vi.mock('./ScreenshotButton', () => ({
+    default: () => <button type="button" aria-label="Take screenshot">Screenshot</button>,
+}))
+
+vi.mock('./ResetCameraButton', () => ({
+    default: () => <button type="button">Reset View</button>,
+}))
+
+vi.mock('./ResetRoomButton', () => ({
+    default: () => <button type="button">Reset Room</button>,
+}))
+
+vi.mock('./DayNightToggle', () => ({
+    default: () => <button type="button">Day/Night</button>,
+}))
+
+vi.mock('./BuildToolbar', () => ({
+    default: () => <div data-testid="build-toolbar">Build Toolbar</div>,
+}))
+
+vi.mock('./PieceActionToolbar', () => ({
+    default: () => <div data-testid="piece-action-toolbar">Piece Action Toolbar</div>,
+}))
+
+vi.mock('./ChatPanel', () => ({
+    default: () => <div data-testid="chat-panel">Chat</div>,
+}))
+
+vi.mock('./CameraPresets', () => ({
+    default: () => <div data-testid="camera-presets">Camera Presets</div>,
+}))
+
+vi.mock('./StarterTemplates', () => ({
+    default: () => <div data-testid="starter-templates">Starter Templates</div>,
+}))
+
 function renderRoomPage() {
     render(
         <MemoryRouter
@@ -81,5 +134,38 @@ describe('RoomPage', () => {
         expect(screen.getByText('Server is offline. Start the backend and try again.')).toBeInTheDocument()
         expect(gameStoreMock.initSocketListeners).toHaveBeenCalledTimes(1)
         expect(gameStoreMock.joinRoom).toHaveBeenCalledWith('ABC123', 'Guest')
+    })
+
+    it('enters photo mode with editing controls hidden and screenshot still available', async () => {
+        const user = userEvent.setup()
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+
+        renderRoomPage()
+
+        expect(await screen.findByRole('heading', { name: /room: ABC123/i })).toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: /photo mode/i }))
+
+        expect(screen.queryByRole('heading', { name: /room: ABC123/i })).not.toBeInTheDocument()
+        expect(screen.queryByTestId('piece-tray')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('build-toolbar')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('chat-panel')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /exit photo mode/i })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /take screenshot/i })).toBeInTheDocument()
+    })
+
+    it('restores the builder controls after exiting photo mode', async () => {
+        const user = userEvent.setup()
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+
+        renderRoomPage()
+
+        await screen.findByRole('heading', { name: /room: ABC123/i })
+        await user.click(screen.getByRole('button', { name: /photo mode/i }))
+        await user.click(screen.getByRole('button', { name: /exit photo mode/i }))
+
+        expect(screen.getByRole('heading', { name: /room: ABC123/i })).toBeInTheDocument()
+        expect(screen.getByTestId('piece-tray')).toBeInTheDocument()
+        expect(screen.getByTestId('build-toolbar')).toBeInTheDocument()
+        expect(screen.getByTestId('chat-panel')).toBeInTheDocument()
     })
 })

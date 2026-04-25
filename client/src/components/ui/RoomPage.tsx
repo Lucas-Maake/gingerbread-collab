@@ -54,6 +54,7 @@ export default function RoomPage() {
     const [isJoining, setIsJoining] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [copyLinkState, setCopyLinkState] = useState<'idle' | 'success' | 'error'>('idle')
+    const [isPhotoMode, setIsPhotoMode] = useState(false)
     const hasJoined = useRef(false)
     const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const pendingLeaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -158,6 +159,21 @@ export default function RoomPage() {
         setCopyFeedback(copied ? 'success' : 'error')
     }, [setCopyFeedback])
 
+    const enterPhotoMode = useCallback(() => {
+        setIsPhotoMode(true)
+        window.dispatchEvent(new CustomEvent('setCameraPreset', {
+            detail: {
+                azimuth: Math.PI / 4,
+                polar: Math.PI / 3,
+                zoom: 58
+            }
+        }))
+    }, [])
+
+    const exitPhotoMode = useCallback(() => {
+        setIsPhotoMode(false)
+    }, [])
+
     const copyButtonLabel = copyLinkState === 'success'
         ? 'Copied!'
         : copyLinkState === 'error'
@@ -202,25 +218,35 @@ export default function RoomPage() {
     }
 
     return (
-        <div className="room-page">
+        <div className={`room-page ${isPhotoMode ? 'photo-mode' : ''}`}>
             {/* Header */}
-            <div className="room-header">
-                <div className="room-info">
-                    <h2>Room: {roomId}</h2>
-                    <button
-                        className={`btn-copy ${copyLinkState === 'success' ? 'copied' : ''} ${copyLinkState === 'error' ? 'copy-error' : ''}`}
-                        onClick={handleCopyLink}
-                        title={copyButtonTitle}
-                        aria-live="polite"
-                    >
-                        {copyButtonLabel}
-                    </button>
-                    <span className="piece-count">
-                        {pieceCount}/{maxPieces} pieces
-                    </span>
+            {!isPhotoMode && (
+                <div className="room-header">
+                    <div className="room-info">
+                        <h2>Room: {roomId}</h2>
+                        <button
+                            className={`btn-copy ${copyLinkState === 'success' ? 'copied' : ''} ${copyLinkState === 'error' ? 'copy-error' : ''}`}
+                            onClick={handleCopyLink}
+                            title={copyButtonTitle}
+                            aria-live="polite"
+                        >
+                            {copyButtonLabel}
+                        </button>
+                        <button
+                            className="photo-mode-button"
+                            onClick={enterPhotoMode}
+                            title="Enter photo mode"
+                            aria-label="Enter photo mode"
+                        >
+                            Photo Mode
+                        </button>
+                        <span className="piece-count">
+                            {pieceCount}/{maxPieces} pieces
+                        </span>
+                    </div>
+                    <PresenceBar />
                 </div>
-                <PresenceBar />
-            </div>
+            )}
 
             {/* 3D Scene */}
             <div className="canvas-container">
@@ -228,40 +254,44 @@ export default function RoomPage() {
             </div>
 
             {/* Piece Tray */}
-            <PieceTray />
+            {!isPhotoMode && <PieceTray />}
 
             {/* Piece Action Toolbar */}
-            <PieceActionToolbar />
+            {!isPhotoMode && <PieceActionToolbar />}
 
             {/* Controls Overlay */}
-            <div className="controls-overlay">
-                <div className="controls-hint">
-                    <p><strong>Controls:</strong></p>
-                    <p>V: Select mode | W: Wall mode | F: Fence mode | I: Icing mode</p>
-                    <p>G: Toggle grid snap | R: Toggle roof style</p>
-                    <p>Rotate View: Right Mouse Drag</p>
-                    <p>Pan: Middle Mouse / Shift + Drag</p>
-                    <p>Zoom: Mouse Wheel</p>
-                    <p>Rotate Piece: Q/E (while holding)</p>
-                    <p>Undo: Ctrl+Z</p>
+            {!isPhotoMode && (
+                <div className="controls-overlay">
+                    <div className="controls-hint">
+                        <p><strong>Controls:</strong></p>
+                        <p>V: Select mode | W: Wall mode | F: Fence mode | I: Icing mode</p>
+                        <p>G: Toggle grid snap | R: Toggle roof style</p>
+                        <p>Rotate View: Right Mouse Drag</p>
+                        <p>Pan: Middle Mouse / Shift + Drag</p>
+                        <p>Zoom: Mouse Wheel</p>
+                        <p>Rotate Piece: Q/E (while holding)</p>
+                        <p>Undo: Ctrl+Z</p>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Undo Button */}
-            <button
-                className={`undo-button ${undoCount === 0 ? 'disabled' : ''}`}
-                onClick={handleUndo}
-                disabled={undoCount === 0}
-                title={undoCount > 0 ? `Undo (${undoCount} available)` : 'Nothing to undo'}
-            >
-                Undo {undoCount > 0 && <span className="undo-count">({undoCount})</span>}
-            </button>
+            {!isPhotoMode && (
+                <button
+                    className={`undo-button ${undoCount === 0 ? 'disabled' : ''}`}
+                    onClick={handleUndo}
+                    disabled={undoCount === 0}
+                    title={undoCount > 0 ? `Undo (${undoCount} available)` : 'Nothing to undo'}
+                >
+                    Undo {undoCount > 0 && <span className="undo-count">({undoCount})</span>}
+                </button>
+            )}
 
             {/* Build Toolbar */}
-            <BuildToolbar />
+            {!isPhotoMode && <BuildToolbar />}
 
             {/* Starter Templates */}
-            <StarterTemplates />
+            {!isPhotoMode && <StarterTemplates />}
 
             {/* Connection Status */}
             {connectionState !== 'connected' && (
@@ -275,28 +305,41 @@ export default function RoomPage() {
             )}
 
             {/* Audio Controls Container */}
-            <div className="audio-controls">
-                <MuteButton />
-                <SfxMuteButton />
-            </div>
+            {!isPhotoMode && (
+                <div className="audio-controls">
+                    <MuteButton />
+                    <SfxMuteButton />
+                </div>
+            )}
 
             {/* Screenshot Button */}
             <ScreenshotButton />
 
             {/* Reset Camera Button */}
-            <ResetCameraButton />
+            {!isPhotoMode && <ResetCameraButton />}
 
             {/* Reset Room Button */}
-            <ResetRoomButton />
+            {!isPhotoMode && <ResetRoomButton />}
 
             {/* Day/Night Toggle */}
-            <DayNightToggle />
+            {!isPhotoMode && <DayNightToggle />}
 
             {/* Chat Panel */}
-            <ChatPanel />
+            {!isPhotoMode && <ChatPanel />}
 
             {/* Camera Presets */}
-            <CameraPresets />
+            {!isPhotoMode && <CameraPresets />}
+
+            {isPhotoMode && (
+                <button
+                    className="photo-mode-exit"
+                    onClick={exitPhotoMode}
+                    title="Exit photo mode"
+                    aria-label="Exit photo mode"
+                >
+                    Exit Photo Mode
+                </button>
+            )}
         </div>
     )
 }
