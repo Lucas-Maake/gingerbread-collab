@@ -278,7 +278,7 @@ test('production build can create a room and spawn a piece in a real browser', a
         assert.match(roomId || '', /^[A-Z0-9]{6}$/)
 
         await waitForVisible(page.getByRole('heading', { name: `Room: ${roomId}` }), 'room heading', page, pageErrors, failedRequests)
-        await waitForVisible(page.getByRole('button', { name: /Copy Link/ }), 'copy link button', page, pageErrors, failedRequests)
+        await waitForVisible(page.getByRole('button', { name: /Copy Invite Link/ }), 'copy invite link button', page, pageErrors, failedRequests)
         await waitForVisible(page.getByText(/^0\/\d+ pieces$/), 'initial piece count', page, pageErrors, failedRequests)
 
         await page.getByRole('button', { name: /Gumdrop/ }).click()

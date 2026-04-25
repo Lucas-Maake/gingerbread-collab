@@ -175,15 +175,15 @@ export default function RoomPage() {
         setIsPhotoMode(false)
     }, [])
 
-    const copyButtonLabel = copyLinkState === 'success'
-        ? 'Copied!'
+    const inviteButtonLabel = copyLinkState === 'success'
+        ? 'Invite Copied'
         : copyLinkState === 'error'
             ? 'Copy Failed'
-            : 'Copy Link'
+            : 'Copy Invite Link'
 
-    const copyButtonTitle = copyLinkState === 'error'
+    const inviteButtonTitle = copyLinkState === 'error'
         ? 'Clipboard unavailable. Please copy from the address bar.'
-        : 'Copy room link'
+        : 'Copy invite link'
 
     // Handle connection error
     if (error) {
@@ -223,16 +223,20 @@ export default function RoomPage() {
             {/* Header */}
             {!isPhotoMode && (
                 <div className="room-header">
-                    <div className="room-info">
+                    <section className="room-info" aria-label="Invite room">
                         <h2>Room: {roomId}</h2>
-                        <button
-                            className={`btn-copy ${copyLinkState === 'success' ? 'copied' : ''} ${copyLinkState === 'error' ? 'copy-error' : ''}`}
-                            onClick={handleCopyLink}
-                            title={copyButtonTitle}
-                            aria-live="polite"
-                        >
-                            {copyButtonLabel}
-                        </button>
+                        <div className="invite-card">
+                            <span className="invite-kicker">Share this room with friends</span>
+                            <code className="room-code">{roomId}</code>
+                            <button
+                                className={`btn-copy ${copyLinkState === 'success' ? 'copied' : ''} ${copyLinkState === 'error' ? 'copy-error' : ''}`}
+                                onClick={handleCopyLink}
+                                title={inviteButtonTitle}
+                                aria-live="polite"
+                            >
+                                {inviteButtonLabel}
+                            </button>
+                        </div>
                         <button
                             className="photo-mode-button"
                             onClick={enterPhotoMode}
@@ -244,7 +248,7 @@ export default function RoomPage() {
                         <span className="piece-count">
                             {pieceCount}/{maxPieces} pieces
                         </span>
-                    </div>
+                    </section>
                     <PresenceBar />
                 </div>
             )}
