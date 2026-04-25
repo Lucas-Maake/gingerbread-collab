@@ -16,6 +16,7 @@ import PieceActionToolbar from './PieceActionToolbar'
 import ChatPanel from './ChatPanel'
 import CameraPresets from './CameraPresets'
 import StarterTemplates from './StarterTemplates'
+import BuildHistoryPanel from './BuildHistoryPanel'
 import './RoomPage.css'
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -286,6 +287,8 @@ export default function RoomPage() {
                     Undo {undoCount > 0 && <span className="undo-count">({undoCount})</span>}
                 </button>
             )}
+
+            {!isPhotoMode && <BuildHistoryPanel />}
 
             {/* Build Toolbar */}
             {!isPhotoMode && <BuildToolbar />}

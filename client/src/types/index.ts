@@ -123,6 +123,18 @@ export interface IcingState {
     version: number
 }
 
+export interface BuildHistoryEntry {
+    id: string
+    action: string
+    userId: string | null
+    userName: string
+    userColor: string | null
+    description: string
+    subjectType?: string | null
+    subjectId?: string | null
+    createdAt: number
+}
+
 // ===========================================
 // SNAPPING TYPES
 // ===========================================
@@ -165,6 +177,7 @@ export interface RoomSnapshot {
     walls: WallState[]
     icing: IcingState[]
     chatMessages: ChatMessage[]
+    historyEntries?: BuildHistoryEntry[]
     pieceCount: number
     maxPieces: number
 }

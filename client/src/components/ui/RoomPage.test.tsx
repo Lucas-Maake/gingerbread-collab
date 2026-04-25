@@ -10,6 +10,16 @@ const gameStoreMock = vi.hoisted(() => ({
         pieceCount: 0,
         maxPieces: 120,
         undoCount: 0,
+        undo: vi.fn(),
+        historyEntries: [] as Array<{
+            id: string
+            action: string
+            userId: string | null
+            userName: string
+            userColor: string | null
+            description: string
+            createdAt: number
+        }>,
     },
     initSocketListeners: vi.fn(),
     joinRoom: vi.fn(),
@@ -117,10 +127,12 @@ beforeEach(() => {
     gameStoreMock.state.pieceCount = 0
     gameStoreMock.state.maxPieces = 120
     gameStoreMock.state.undoCount = 0
+    gameStoreMock.state.historyEntries = []
     gameStoreMock.initSocketListeners.mockReset()
     gameStoreMock.joinRoom.mockReset()
     gameStoreMock.leaveRoom.mockReset()
     gameStoreMock.undo.mockReset()
+    gameStoreMock.state.undo = gameStoreMock.undo
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
 })
 
@@ -167,5 +179,32 @@ describe('RoomPage', () => {
         expect(screen.getByTestId('piece-tray')).toBeInTheDocument()
         expect(screen.getByTestId('build-toolbar')).toBeInTheDocument()
         expect(screen.getByTestId('chat-panel')).toBeInTheDocument()
+    })
+
+    it('shows recent build history and exposes undo from the panel', async () => {
+        const user = userEvent.setup()
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+        gameStoreMock.state.undoCount = 1
+        gameStoreMock.state.historyEntries = [{
+            id: 'hist-1',
+            action: 'piece_spawned',
+            userId: 'user-1',
+            userName: 'Alex',
+            userColor: '#38bdf8',
+            description: 'placed Gumdrop',
+            createdAt: Date.now(),
+        }]
+
+        renderRoomPage()
+
+        await screen.findByRole('heading', { name: /room: ABC123/i })
+        await user.click(screen.getByRole('button', { name: /history/i }))
+
+        expect(screen.getByRole('region', { name: /build history/i })).toBeInTheDocument()
+        expect(screen.getByText('Alex')).toBeInTheDocument()
+        expect(screen.getByText('placed Gumdrop')).toBeInTheDocument()
+
+        await user.click(screen.getByRole('button', { name: /undo last action/i }))
+        expect(gameStoreMock.undo).toHaveBeenCalledTimes(1)
     })
 })

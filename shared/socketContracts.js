@@ -36,6 +36,7 @@ export const SERVER_EVENTS = Object.freeze({
   WALL_SEGMENT_DELETED: 'wall_segment_deleted',
   ICING_STROKE_CREATED: 'icing_stroke_created',
   ICING_STROKE_DELETED: 'icing_stroke_deleted',
+  HISTORY_ENTRY_ADDED: 'history_entry_added',
   CHAT_MESSAGE: 'chat_message',
   ROOM_RESET: 'room_reset'
 })

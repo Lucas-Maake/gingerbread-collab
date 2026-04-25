@@ -11,6 +11,7 @@ import type {
     PieceProperties,
     RoomSnapshot,
     WallState,
+    BuildHistoryEntry,
 } from '../../types'
 
 export type { BuildMode, ConnectionState, GameState, RoofStyle, TimeOfDay } from './types'
@@ -85,6 +86,7 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
 
     // ==================== UNDO STATE ====================
     undoCount: 0,
+    historyEntries: [],
 
     // ==================== ACTIONS ====================
 
@@ -107,6 +109,7 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
             hostUserId: null,
             users: new Map(),
             pieces: new Map(),
+            historyEntries: [],
             localUser: null,
             heldPieceId: null,
             snapInfo: null,
@@ -178,7 +181,8 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
                 piecesMap,
                 wallsMap,
                 icingMap,
-                chatMessages
+                chatMessages,
+                historyEntries
             } = buildSnapshotMaps(snapshot)
 
             set({
@@ -190,6 +194,7 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
                 walls: wallsMap,
                 icing: icingMap,
                 chatMessages,
+                historyEntries,
                 localUser: (userId && usersMap.get(userId)) || null,
                 pieceCount: snapshot.pieceCount,
                 maxPieces: snapshot.maxPieces,
@@ -235,6 +240,7 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
             walls: new Map(),
             icing: new Map(),
             chatMessages: [],
+            historyEntries: [],
             isChatOpen: false,
             unreadChatCount: 0,
             localUser: null,
@@ -547,7 +553,8 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
             piecesMap,
             wallsMap,
             icingMap,
-            chatMessages
+            chatMessages,
+            historyEntries
         } = buildSnapshotMaps(snapshot)
 
         set({
@@ -557,6 +564,7 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
             walls: wallsMap,
             icing: icingMap,
             chatMessages: snapshot.chatMessages !== undefined ? chatMessages : get().chatMessages,
+            historyEntries: snapshot.historyEntries !== undefined ? historyEntries : get().historyEntries,
             pieceCount: snapshot.pieceCount || 0,
             maxPieces: snapshot.maxPieces || get().maxPieces,
             heldPieceId: null,
@@ -568,6 +576,12 @@ export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
             undoCount: 0,
             hostUserId: snapshot.hostUserId || get().hostUserId
         })
+    },
+
+    handleHistoryEntryAdded: (data) => {
+        const entry = data.entry as BuildHistoryEntry
+        const historyEntries = [...get().historyEntries, entry].slice(-30)
+        set({ historyEntries })
     },
 
     // Clear error/notification
@@ -993,6 +1007,7 @@ export function initSocketListeners() {
     socket.on(SERVER_EVENTS.PIECE_MOVED, (data) => useGameStore.getState().handlePieceMoved(data))
     socket.on(SERVER_EVENTS.PIECE_PROPERTIES_UPDATED, (data) => useGameStore.getState().handlePiecePropertiesUpdated(data))
     socket.on(SERVER_EVENTS.PIECE_DELETED, (data) => useGameStore.getState().handlePieceDeleted(data))
+    socket.on(SERVER_EVENTS.HISTORY_ENTRY_ADDED, (data) => useGameStore.getState().handleHistoryEntryAdded(data))
 
     // Wall events
     socket.on(SERVER_EVENTS.WALL_SEGMENT_CREATED, (data) => useGameStore.getState().handleWallCreated(data))
