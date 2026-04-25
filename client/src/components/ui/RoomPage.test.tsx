@@ -133,6 +133,10 @@ beforeEach(() => {
     gameStoreMock.leaveRoom.mockReset()
     gameStoreMock.undo.mockReset()
     gameStoreMock.state.undo = gameStoreMock.undo
+    Object.defineProperty(document, 'execCommand', {
+        value: vi.fn(() => true),
+        configurable: true,
+    })
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
 })
 
@@ -206,5 +210,29 @@ describe('RoomPage', () => {
 
         await user.click(screen.getByRole('button', { name: /undo last action/i }))
         expect(gameStoreMock.undo).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows a clear invite affordance with the room code', async () => {
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+
+        renderRoomPage()
+
+        expect(await screen.findByRole('region', { name: /invite room/i })).toBeInTheDocument()
+        expect(screen.getByText('ABC123')).toBeInTheDocument()
+        expect(screen.getByText(/share this room with friends/i)).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /copy invite link/i })).toBeInTheDocument()
+    })
+
+    it('shows intentional feedback after copying the invite link', async () => {
+        const user = userEvent.setup()
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+
+        renderRoomPage()
+
+        await screen.findByRole('region', { name: /invite room/i })
+        await user.click(screen.getByRole('button', { name: /copy invite link/i }))
+
+        expect(document.execCommand).toHaveBeenCalledWith('copy')
+        expect(screen.getByRole('button', { name: /invite copied/i })).toBeInTheDocument()
     })
 })
