@@ -166,3 +166,9 @@
     display: none;
   }
 }
+
+@media (min-aspect-ratio: 3/1) {
+  .build-toolbar {
+    display: none;
+  }
+}

@@ -232,3 +232,36 @@
     font-size: 18px;
   }
 }
+
+@media (min-aspect-ratio: 3/1) {
+  .piece-tray {
+    padding-top: 6px;
+    padding-bottom: 8px;
+  }
+
+  .piece-category {
+    gap: 2px;
+  }
+
+  .piece-category-tabs {
+    width: min(100%, 600px);
+  }
+
+  .piece-category-tab {
+    padding: 5px 10px;
+    font-size: 0.62rem;
+  }
+
+  .category-label {
+    display: none;
+  }
+
+  .piece-button {
+    min-width: 52px;
+    padding: 7px 9px;
+  }
+
+  .piece-icon {
+    font-size: 18px;
+  }
+}

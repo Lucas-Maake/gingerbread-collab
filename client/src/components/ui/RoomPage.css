@@ -296,6 +296,29 @@
   }
 }
 
+@media (min-aspect-ratio: 3/1) {
+  .controls-overlay {
+    left: var(--spacing-md);
+    bottom: 148px;
+    max-width: min(304px, calc(100vw - 32px));
+    padding: 12px;
+  }
+
+  .controls-hint {
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .controls-hint p {
+    margin: 2px 0;
+  }
+
+  .undo-button,
+  .build-history {
+    display: none;
+  }
+}
+
 .undo-button:hover {
   background: linear-gradient(135deg, var(--holly-red-glow) 0%, var(--holly-red) 100%);
   transform: scale(1.05);
