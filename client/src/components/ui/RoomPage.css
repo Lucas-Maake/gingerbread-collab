@@ -78,6 +78,36 @@
   box-shadow: 0 0 15px rgba(220, 38, 38, 0.35);
 }
 
+.photo-mode-button,
+.photo-mode-exit {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.24) 0%, rgba(30, 58, 95, 0.9) 100%);
+  color: var(--snow-white);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
+  transition: all 0.25s ease;
+}
+
+.photo-mode-button:hover,
+.photo-mode-exit:hover {
+  background: linear-gradient(135deg, rgba(125, 211, 252, 0.34) 0%, rgba(30, 58, 95, 0.95) 100%);
+  border-color: rgba(186, 230, 253, 0.55);
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.28);
+}
+
+.photo-mode-exit {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  z-index: 220;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
 .presence-bar {
   display: flex;
   gap: var(--spacing-sm);
