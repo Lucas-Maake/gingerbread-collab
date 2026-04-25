@@ -205,7 +205,9 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 120px;
+  min-height: 120px;
+  height: auto;
+  box-sizing: border-box;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.95));
   backdrop-filter: blur(16px);
   display: flex;
@@ -273,6 +275,23 @@
 
 @media (max-height: 760px) {
   .controls-overlay {
+    left: var(--spacing-md);
+    bottom: 148px;
+    max-width: min(304px, calc(100vw - 32px));
+    padding: 12px;
+  }
+
+  .controls-hint {
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .controls-hint p {
+    margin: 2px 0;
+  }
+
+  .undo-button,
+  .build-history {
     display: none;
   }
 }

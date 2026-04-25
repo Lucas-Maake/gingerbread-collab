@@ -163,8 +163,6 @@
 
 @media (max-height: 760px) {
   .build-toolbar {
-    top: 160px;
-    max-height: calc(100vh - 300px);
-    overflow-y: auto;
+    display: none;
   }
 }
