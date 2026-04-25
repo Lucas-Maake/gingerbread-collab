@@ -1,0 +1,153 @@
+.onboarding-checklist {
+  position: absolute;
+  top: 125px;
+  right: var(--spacing-md);
+  width: min(330px, calc(100vw - 32px));
+  z-index: 175;
+  padding: var(--spacing-md);
+  color: var(--ice-silver);
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.9), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.onboarding-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.onboarding-header h3 {
+  margin: 0;
+  font-family: 'Mountains of Christmas', cursive;
+  color: var(--snow-white);
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.onboarding-header p {
+  margin: 4px 0 0;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.onboarding-dismiss {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: rgba(226, 232, 240, 0.82);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  transition: all 0.2s ease;
+}
+
+.onboarding-dismiss:hover {
+  color: var(--snow-white);
+  border-color: rgba(125, 211, 252, 0.35);
+  background: rgba(56, 189, 248, 0.16);
+}
+
+.onboarding-progress {
+  display: grid;
+  gap: 7px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.onboarding-progress span {
+  color: var(--frost-blue);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.onboarding-progress-track {
+  height: 7px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.onboarding-progress-track span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--frost-blue), var(--pine-green-glow));
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.onboarding-steps {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-steps li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 8px;
+  color: rgba(226, 232, 240, 0.78);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.onboarding-steps li.complete {
+  color: var(--snow-white);
+  border-color: rgba(34, 197, 94, 0.2);
+  background: rgba(21, 128, 61, 0.16);
+}
+
+.onboarding-status-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(226, 232, 240, 0.34);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.onboarding-steps li.complete .onboarding-status-dot {
+  position: relative;
+  border-color: rgba(34, 197, 94, 0.75);
+  background: var(--pine-green);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.25);
+}
+
+.onboarding-steps li.complete .onboarding-status-dot::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--snow-white);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+@media (max-width: 900px) {
+  .onboarding-checklist {
+    top: 118px;
+    right: var(--spacing-sm);
+    width: min(300px, calc(100vw - 24px));
+    padding: var(--spacing-sm);
+  }
+}
