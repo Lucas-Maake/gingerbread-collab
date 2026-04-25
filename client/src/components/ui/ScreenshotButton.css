@@ -56,3 +56,9 @@
   font-weight: 700;
   letter-spacing: 0.03em;
 }
+
+@media (max-height: 760px), (min-aspect-ratio: 3/1) {
+  .screenshot-button {
+    bottom: 160px;
+  }
+}
