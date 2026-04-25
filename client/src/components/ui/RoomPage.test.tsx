@@ -285,4 +285,33 @@ describe('RoomPage', () => {
         expect(screen.getByText('5 of 5 complete')).toBeInTheDocument()
         expect(screen.getByText('Ready for a snapshot')).toBeInTheDocument()
     })
+
+    it('shows a shareable snapshot card in photo mode', async () => {
+        const user = userEvent.setup()
+        gameStoreMock.joinRoom.mockResolvedValueOnce(undefined)
+        gameStoreMock.state.pieceCount = 2
+        gameStoreMock.state.users = new Map([
+            ['user-1', { userId: 'user-1', name: 'Alex', color: '#38bdf8', cursor: { x: 0, y: 0, z: 0, t: 0 }, isActive: true }],
+            ['user-2', { userId: 'user-2', name: 'Sam', color: '#ef4444', cursor: { x: 0, y: 0, z: 0, t: 0 }, isActive: true }],
+        ])
+        gameStoreMock.state.walls = new Map([
+            ['wall-1', { wallId: 'wall-1', start: [0, 0], end: [1, 0], height: 1.5, thickness: 0.1, createdBy: 'user-1', version: 1 }],
+        ])
+
+        renderRoomPage()
+
+        await screen.findByRole('heading', { name: /room: ABC123/i })
+        await user.click(screen.getByRole('button', { name: /photo mode/i }))
+
+        expect(screen.getByRole('region', { name: /share snapshot/i })).toBeInTheDocument()
+        expect(screen.getByText('Room ABC123')).toBeInTheDocument()
+        expect(screen.getByText('2 pieces')).toBeInTheDocument()
+        expect(screen.getByText('1 wall')).toBeInTheDocument()
+        expect(screen.getByText('2 builders')).toBeInTheDocument()
+
+        await user.click(screen.getByRole('button', { name: /copy share text/i }))
+
+        expect(document.execCommand).toHaveBeenCalledWith('copy')
+        expect(screen.getByRole('button', { name: /snapshot copied/i })).toBeInTheDocument()
+    })
 })

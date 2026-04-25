@@ -18,6 +18,7 @@ import CameraPresets from './CameraPresets'
 import StarterTemplates from './StarterTemplates'
 import BuildHistoryPanel from './BuildHistoryPanel'
 import OnboardingChecklist from './OnboardingChecklist'
+import SnapshotShareCard from './SnapshotShareCard'
 import './RoomPage.css'
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -342,14 +343,17 @@ export default function RoomPage() {
             {!isPhotoMode && <CameraPresets />}
 
             {isPhotoMode && (
-                <button
-                    className="photo-mode-exit"
-                    onClick={exitPhotoMode}
-                    title="Exit photo mode"
-                    aria-label="Exit photo mode"
-                >
-                    Exit Photo Mode
-                </button>
+                <>
+                    <SnapshotShareCard roomId={roomId || ''} />
+                    <button
+                        className="photo-mode-exit"
+                        onClick={exitPhotoMode}
+                        title="Exit photo mode"
+                        aria-label="Exit photo mode"
+                    >
+                        Exit Photo Mode
+                    </button>
+                </>
             )}
         </div>
     )
