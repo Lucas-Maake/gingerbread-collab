@@ -1,0 +1,92 @@
+.snapshot-share-card {
+  position: absolute;
+  left: var(--spacing-md);
+  bottom: 140px;
+  width: min(320px, calc(100vw - 32px));
+  z-index: 180;
+  padding: var(--spacing-md);
+  color: var(--ice-silver);
+  background: linear-gradient(145deg, rgba(30, 58, 95, 0.86), rgba(15, 23, 42, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.snapshot-share-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--frost-blue);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.snapshot-share-card h3 {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--snow-white);
+  font-family: 'Mountains of Christmas', cursive;
+  font-size: 1.45rem;
+  line-height: 1.05;
+}
+
+.snapshot-share-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: var(--spacing-md);
+}
+
+.snapshot-share-stats span {
+  min-width: 0;
+  padding: 8px 6px;
+  color: var(--snow-white);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.snapshot-share-button {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--snow-white);
+  background: linear-gradient(135deg, var(--pine-green) 0%, #166534 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9px;
+  box-shadow: 0 4px 15px rgba(21, 128, 61, 0.34);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  transition: all 0.22s ease;
+}
+
+.snapshot-share-button:hover {
+  background: linear-gradient(135deg, var(--pine-green-glow) 0%, var(--pine-green) 100%);
+  box-shadow: 0 6px 20px rgba(21, 128, 61, 0.45);
+  transform: translateY(-1px);
+}
+
+.snapshot-share-button.copied {
+  background: linear-gradient(135deg, var(--frost-blue) 0%, var(--twilight-blue) 100%);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.32);
+}
+
+.snapshot-share-button.copy-error {
+  background: linear-gradient(135deg, var(--holly-red) 0%, #b91c1c 100%);
+  box-shadow: 0 0 18px rgba(220, 38, 38, 0.32);
+}
+
+@media (max-width: 760px) {
+  .snapshot-share-card {
+    left: var(--spacing-sm);
+    bottom: 108px;
+    width: min(300px, calc(100vw - 24px));
+    padding: var(--spacing-sm);
+  }
+}
