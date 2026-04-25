@@ -222,8 +222,8 @@
 .controls-overlay {
   position: absolute;
   bottom: 140px;
-  left: 235px;
-  max-width: min(380px, calc(100vw - 585px));
+  left: var(--spacing-md);
+  max-width: min(380px, calc(100vw - 32px));
   background: linear-gradient(145deg, rgba(30, 58, 95, 0.85), rgba(15, 23, 42, 0.9));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
