@@ -2,7 +2,7 @@
 
 .reset-room-button {
   position: absolute;
-  bottom: 250px;
+  bottom: 280px;
   right: var(--spacing-md);
   background: linear-gradient(135deg, var(--holly-red) 0%, #b91c1c 100%);
   color: white;
@@ -39,7 +39,7 @@
 
 @media (max-height: 760px), (min-aspect-ratio: 3/1) {
   .reset-room-button {
-    bottom: 250px;
+    bottom: 280px;
   }
 }
 

@@ -2,7 +2,7 @@
 
 .screenshot-button {
   position: absolute;
-  bottom: 160px;
+  bottom: 190px;
   right: var(--spacing-md);
   background: linear-gradient(135deg, var(--pine-green) 0%, #166534 100%);
   color: white;
@@ -59,6 +59,6 @@
 
 @media (max-height: 760px), (min-aspect-ratio: 3/1) {
   .screenshot-button {
-    bottom: 160px;
+    bottom: 190px;
   }
 }

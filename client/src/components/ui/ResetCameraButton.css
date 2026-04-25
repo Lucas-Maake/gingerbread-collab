@@ -2,7 +2,7 @@
 
 .reset-camera-button {
   position: absolute;
-  bottom: 205px;
+  bottom: 235px;
   right: var(--spacing-md);
   background: linear-gradient(145deg, rgba(30, 58, 95, 0.85), rgba(15, 23, 42, 0.9));
   color: var(--ice-silver);
@@ -43,6 +43,6 @@
 
 @media (max-height: 760px), (min-aspect-ratio: 3/1) {
   .reset-camera-button {
-    bottom: 205px;
+    bottom: 235px;
   }
 }

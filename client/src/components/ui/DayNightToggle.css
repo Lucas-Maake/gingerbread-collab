@@ -1,6 +1,6 @@
 .day-night-toggle {
   position: fixed;
-  bottom: 295px;
+  bottom: 325px;
   right: 20px;
   width: 44px;
   height: 44px;
@@ -41,6 +41,6 @@
 
 @media (max-height: 760px), (min-aspect-ratio: 3/1) {
   .day-night-toggle {
-    bottom: 295px;
+    bottom: 325px;
   }
 }
