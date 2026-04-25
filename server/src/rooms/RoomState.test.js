@@ -192,6 +192,56 @@ test('updatePieceProperties requires the active holder and persists properties',
   assert.deepEqual(result.piece.toJSON().snapPreference, 'wall')
 })
 
+test('history entries are kept in memory for joining clients and capped to recent activity', () => {
+  const { room } = createRoomWithHost()
+  const user = room.users.values().next().value
+
+  const firstEntry = room.addHistoryEntry({
+    action: 'piece_spawned',
+    user,
+    description: 'placed Gumdrop',
+    subjectType: 'piece',
+    subjectId: 'piece-1'
+  })
+
+  assert.equal(firstEntry.action, 'piece_spawned')
+  assert.equal(firstEntry.userName, 'Host')
+  assert.equal(firstEntry.description, 'placed Gumdrop')
+  assert.equal(firstEntry.subjectType, 'piece')
+  assert.equal(firstEntry.subjectId, 'piece-1')
+  assert.equal(room.getSnapshot().historyEntries.length, 1)
+
+  for (let index = 0; index < 35; index += 1) {
+    room.addHistoryEntry({
+      action: 'piece_deleted',
+      user,
+      description: `deleted Piece ${index}`
+    })
+  }
+
+  const snapshot = room.getSnapshot()
+  assert.equal(snapshot.historyEntries.length, 30)
+  assert.equal(snapshot.historyEntries[0].description, 'deleted Piece 5')
+  assert.equal(snapshot.historyEntries.at(-1).description, 'deleted Piece 34')
+})
+
+test('fromSnapshot does not restore transient room history', () => {
+  const room = RoomState.fromSnapshot({
+    roomId: 'ABC123',
+    historyEntries: [{
+      id: 'hist-1',
+      action: 'piece_spawned',
+      userId: 'host-1',
+      userName: 'Host',
+      userColor: '#fff',
+      description: 'placed Gumdrop',
+      createdAt: Date.now()
+    }]
+  })
+
+  assert.deepEqual(room.getSnapshot().historyEntries, [])
+})
+
 test('fromSnapshot restores geometry/chat state while clearing user locks', () => {
   const snapshot = {
     roomId: 'ABC123',

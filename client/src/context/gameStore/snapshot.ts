@@ -1,5 +1,6 @@
 import type {
     ChatMessage,
+    BuildHistoryEntry,
     IcingState,
     PieceState,
     RoomSnapshot,
@@ -13,6 +14,7 @@ export interface SnapshotMaps {
     wallsMap: Map<string, WallState>
     icingMap: Map<string, IcingState>
     chatMessages: ChatMessage[]
+    historyEntries: BuildHistoryEntry[]
 }
 
 export function buildSnapshotMaps(snapshot: Partial<RoomSnapshot>): SnapshotMaps {
@@ -46,6 +48,7 @@ export function buildSnapshotMaps(snapshot: Partial<RoomSnapshot>): SnapshotMaps
         piecesMap,
         wallsMap,
         icingMap,
-        chatMessages: snapshot.chatMessages || []
+        chatMessages: snapshot.chatMessages || [],
+        historyEntries: snapshot.historyEntries || []
     }
 }

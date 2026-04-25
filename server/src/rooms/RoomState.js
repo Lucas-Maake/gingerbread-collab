@@ -6,6 +6,7 @@ const DEFAULT_FENCE_SPACING = 0.5
 const VALID_SURFACE_TYPES = new Set(['ground', 'wall', 'roof'])
 const MAX_WALL_HEIGHT = 5
 const MAX_ICING_RADIUS = 1
+const MAX_HISTORY_ENTRIES = 30
 
 function sanitizeFenceSpacing(spacing) {
   if (!Number.isFinite(spacing) || spacing <= 0) {
@@ -314,6 +315,7 @@ export class RoomState {
     this.icing = new Map() // Map<icingId, IcingState>
     this.occupancy = new Map() // Map<cellKey, pieceId>
     this.chatMessages = [] // Array of chat messages (max 100)
+    this.historyEntries = []
     this.createdAt = Date.now()
     this.lastActivityAt = Date.now()
     this.availableColors = [...USER_COLORS]
@@ -625,6 +627,27 @@ export class RoomState {
     return { piece }
   }
 
+  addHistoryEntry({ action, user, description, subjectType = null, subjectId = null }) {
+    const entry = {
+      id: nanoid(10),
+      action,
+      userId: user?.userId || null,
+      userName: user?.name || 'Someone',
+      userColor: user?.color || null,
+      description,
+      subjectType,
+      subjectId,
+      createdAt: Date.now()
+    }
+
+    this.historyEntries.push(entry)
+    if (this.historyEntries.length > MAX_HISTORY_ENTRIES) {
+      this.historyEntries.splice(0, this.historyEntries.length - MAX_HISTORY_ENTRIES)
+    }
+
+    return entry
+  }
+
   updatePieceProperties(pieceId, userId, properties) {
     const piece = this.pieces.get(pieceId)
     if (!piece) {
@@ -876,6 +899,7 @@ export class RoomState {
     this.walls.clear()
     this.icing.clear()
     this.occupancy.clear()
+    this.historyEntries = []
 
     for (const user of this.users.values()) {
       user.undoStack = []
@@ -920,6 +944,7 @@ export class RoomState {
       walls: Array.from(this.walls.values()).map(w => w.toJSON()),
       icing: Array.from(this.icing.values()).map(i => i.toJSON()),
       chatMessages: this.chatMessages,
+      historyEntries: this.historyEntries,
       pieceCount: this.pieceCount,
       maxPieces: ROOM_CONFIG.MAX_PIECES_PER_ROOM
     }

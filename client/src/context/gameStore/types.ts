@@ -1,5 +1,6 @@
 import type {
     ChatMessage,
+    BuildHistoryEntry,
     IcingState,
     Normal,
     PieceProperties,
@@ -63,6 +64,7 @@ export interface GameState {
     unreadChatCount: number
 
     undoCount: number
+    historyEntries: BuildHistoryEntry[]
 
     setConnectionState: (state: ConnectionState) => void
     connect: () => void
@@ -94,6 +96,7 @@ export interface GameState {
     handlePieceDeleted: (data: { pieceId: string }) => void
     handleHostChanged: (data: { hostUserId?: string }) => void
     handleRoomReset: (data: { snapshot?: RoomSnapshot }) => void
+    handleHistoryEntryAdded: (data: { entry: BuildHistoryEntry }) => void
 
     clearError: () => void
     clearNotification: () => void

@@ -26,6 +26,28 @@ const rateLimiter = new RateLimiter()
 // Broadcast throttler for transform updates
 const broadcastThrottler = new BroadcastThrottler(RATE_LIMITS.MAX_BROADCAST_HZ)
 
+function formatLabel(value) {
+  if (!value || typeof value !== 'string') return 'item'
+  return value
+    .toLowerCase()
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function recordHistory(io, room, user, action, description, options = {}) {
+  const entry = room.addHistoryEntry({
+    action,
+    user,
+    description,
+    subjectType: options.subjectType || null,
+    subjectId: options.subjectId || null
+  })
+
+  io.to(room.roomId).emit(SERVER_EVENTS.HISTORY_ENTRY_ADDED, { entry })
+  return entry
+}
+
 /**
  * Register all socket event handlers
  */
@@ -193,6 +215,10 @@ export function registerSocketHandlers(io, socket) {
       piece: result.piece.toJSON(),
       spawnedBy: user.userId
     })
+    recordHistory(io, room, user, 'piece_spawned', `added ${formatLabel(result.piece.type)}`, {
+      subjectType: 'piece',
+      subjectId: result.piece.pieceId
+    })
 
     roomManager.markRoomDirty()
 
@@ -299,6 +325,10 @@ export function registerSocketHandlers(io, socket) {
       adjusted: result.adjusted,
       reason: result.reason
     })
+    recordHistory(io, room, user, 'piece_released', `placed ${formatLabel(result.piece.type)}`, {
+      subjectType: 'piece',
+      subjectId: result.piece.pieceId
+    })
 
     roomManager.markRoomDirty()
 
@@ -385,6 +415,10 @@ export function registerSocketHandlers(io, socket) {
       version: result.piece.version,
       updatedBy: user.userId
     })
+    recordHistory(io, room, user, 'piece_properties_updated', `edited ${formatLabel(result.piece.type)}`, {
+      subjectType: 'piece',
+      subjectId: pieceId
+    })
 
     roomManager.markRoomDirty()
     callback({ success: true, piece: result.piece.toJSON() })
@@ -438,6 +472,10 @@ export function registerSocketHandlers(io, socket) {
     io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
       pieceId,
       deletedBy: user.userId
+    })
+    recordHistory(io, room, user, 'piece_deleted', `deleted ${formatLabel(pieceData?.type)}`, {
+      subjectType: 'piece',
+      subjectId: pieceId
     })
 
     // Broadcast cascade deletions for pieces attached to the deleted parent piece
@@ -640,6 +678,7 @@ export function registerSocketHandlers(io, socket) {
         return callback({ error: 'UNKNOWN_ACTION' })
     }
 
+    recordHistory(io, room, user, 'undo', `undid ${formatLabel(action.action)}`)
     callback({ success: true, action: action.action, undoCount: user.undoStack.length })
     roomManager.markRoomDirty()
   })
@@ -693,6 +732,9 @@ export function registerSocketHandlers(io, socket) {
         reason: 'FENCE_LINE'
       })
     }
+    if (pieces.length > 0) {
+      recordHistory(io, room, user, 'fence_line_created', `created fence line (${pieces.length} posts)`)
+    }
 
     callback({
       success: true,
@@ -744,6 +786,10 @@ export function registerSocketHandlers(io, socket) {
     io.to(room.roomId).emit(SERVER_EVENTS.WALL_SEGMENT_CREATED, {
       wall: result.wall.toJSON(),
       createdBy: user.userId
+    })
+    recordHistory(io, room, user, 'wall_created', 'created wall', {
+      subjectType: 'wall',
+      subjectId: result.wall.wallId
     })
 
     roomManager.markRoomDirty()
@@ -822,6 +868,10 @@ export function registerSocketHandlers(io, socket) {
       deletedRoofPieces: result.deletedRoofPieces || [],
       deletedRoofIcing: result.deletedRoofIcing || []
     })
+    recordHistory(io, room, user, 'wall_deleted', 'deleted wall', {
+      subjectType: 'wall',
+      subjectId: wallId
+    })
 
     roomManager.markRoomDirty()
 
@@ -873,6 +923,10 @@ export function registerSocketHandlers(io, socket) {
       icing: result.icing.toJSON(),
       createdBy: user.userId
     })
+    recordHistory(io, room, user, 'icing_created', 'added icing', {
+      subjectType: 'icing',
+      subjectId: result.icing.icingId
+    })
 
     roomManager.markRoomDirty()
 
@@ -923,6 +977,10 @@ export function registerSocketHandlers(io, socket) {
     io.to(room.roomId).emit(SERVER_EVENTS.ICING_STROKE_DELETED, {
       icingId,
       deletedBy: user.userId
+    })
+    recordHistory(io, room, user, 'icing_deleted', 'deleted icing', {
+      subjectType: 'icing',
+      subjectId: icingId
     })
 
     roomManager.markRoomDirty()
@@ -1074,6 +1132,7 @@ export function registerSocketHandlers(io, socket) {
       snapshot: room.getSnapshot(),
       resetBy: user.userId
     })
+    recordHistory(io, room, user, 'room_reset', 'reset the room')
 
     roomManager.markRoomDirty()
 
