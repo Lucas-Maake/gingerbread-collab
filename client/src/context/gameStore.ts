@@ -139,7 +139,7 @@ interface GameState {
     // Socket Event Handlers
     handleUserJoined: (data: { user: UserState }) => void
     handleUserLeft: (data: { userId: string; hostUserId?: string }) => void
-    handleCursorMoved: (data: { userId: string; cursor: Position }) => void
+    handleCursorMoved: (data: { userId: string; cursor: Position | { x: number; y: number; z: number; t?: number } }) => void
     handlePieceSpawned: (data: { piece: PieceState }) => void
     handlePieceGrabbed: (data: { pieceId: string; heldBy: string }) => void
     handlePieceReleased: (data: { piece: PieceState }) => void
@@ -610,7 +610,15 @@ export const useGameStore = create<GameState>((set, get) => ({
         const users = new Map(get().users)
         const user = users.get(data.userId)
         if (user) {
-            user.cursor = { x: data.cursor[0], y: data.cursor[1], z: data.cursor[2], t: Date.now() }
+            const cursor = Array.isArray(data.cursor)
+                ? { x: data.cursor[0], y: data.cursor[1], z: data.cursor[2], t: Date.now() }
+                : { x: data.cursor.x, y: data.cursor.y, z: data.cursor.z, t: data.cursor.t ?? Date.now() }
+
+            if (![cursor.x, cursor.y, cursor.z].every(Number.isFinite)) {
+                return
+            }
+
+            user.cursor = cursor
             users.set(data.userId, { ...user })
             set({ users })
         }
