@@ -6,7 +6,7 @@ import { useGameStore } from '../../context/gameStore'
 import PieceModel from './PieceModel'
 import { PIECE_CONFIGS } from '../../constants/pieceConfigs'
 import { CANDY_COLORS, ROOF } from '../../constants/buildConfig'
-import { PieceState } from '../../types'
+import { PieceState, SurfaceType } from '../../types'
 
 // Re-export PIECE_CONFIGS for backward compatibility
 export { PIECE_CONFIGS }
@@ -216,7 +216,7 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
     }
 
     const resolveSurfaceInfo = () => {
-        let surfaceType = null
+        let surfaceType: SurfaceType = null
         let normal = null
 
         if (isLocallyHeld && snapInfo) {

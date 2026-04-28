@@ -279,7 +279,7 @@ export default function FrostedBackground() {
     }, [timeOfDay])
 
     // Only animate time - background is static in screen space
-    useFrame((state, delta) => {
+    useFrame((_state, delta) => {
         if (materialRef.current) {
             materialRef.current.uniforms.uTime.value += delta * 0.5
             materialRef.current.uniforms.uResolution.value.set(size.width, size.height)

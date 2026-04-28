@@ -60,7 +60,7 @@ interface Notification {
     message: string
 }
 
-interface GameState {
+export interface GameState {
     // ==================== CONNECTION STATE ====================
     connectionState: ConnectionState
     roomId: string | null
@@ -965,7 +965,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             if (deletedCount > 0) {
                 updates.pieces = pieces
                 updates.pieceCount = Math.max(0, get().pieceCount - deletedCount)
-                if (get().heldPieceId && data.deletedPieces.includes(get().heldPieceId)) {
+                const heldPieceId = get().heldPieceId
+                if (heldPieceId && data.deletedPieces.includes(heldPieceId)) {
                     updates.heldPieceId = null
                 }
             }

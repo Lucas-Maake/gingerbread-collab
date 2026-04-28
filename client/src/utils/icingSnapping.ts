@@ -13,7 +13,7 @@ interface RaycastResult {
 /**
  * Calculate wall mesh data for raycasting
  */
-export function getWallMeshes(walls: Map<string, WallState>, scene: THREE.Scene): THREE.Object3D[] {
+export function getWallMeshes(_walls: Map<string, WallState>, scene: THREE.Scene): THREE.Object3D[] {
     const meshes: THREE.Object3D[] = []
 
     scene.traverse((child) => {

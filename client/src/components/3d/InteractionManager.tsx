@@ -272,7 +272,7 @@ export default function InteractionManager() {
                         }
                     }
 
-                    if (snapResult.snapped) {
+                    if (snapResult?.snapped) {
                         finalPos = snapResult.position
                         finalYaw = snapResult.yaw
                         attachedTo = snapResult.targetId || null // Track which wall/roof it's attached to
@@ -353,7 +353,7 @@ export default function InteractionManager() {
                         }
                     }
 
-                    if (snapResult.snapped) {
+                    if (snapResult?.snapped) {
                         finalPos = snapResult.position
                         finalYaw = snapResult.yaw
                         currentRotation.current = finalYaw // Update rotation to match snap
@@ -363,7 +363,7 @@ export default function InteractionManager() {
                         state.setSnapInfo({
                             surfaceType: snapResult.surfaceType || null,
                             normal: snapResult.normal || null,
-                            targetId: snapResult.targetId || undefined,
+                            targetId: snapResult.targetId || null,
                             position: snapResult.position // For snap indicator display
                         })
                     } else {

@@ -1,7 +1,6 @@
 import { useMemo, memo } from 'react'
 import * as THREE from 'three'
-import { useGameStore } from '../../context/gameStore'
-import { GameState } from '../../types'
+import { useGameStore, type GameState } from '../../context/gameStore'
 
 // Glow settings
 const GLOW_COLOR = '#ffaa55' // Warm orange/amber

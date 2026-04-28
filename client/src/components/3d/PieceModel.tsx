@@ -219,9 +219,13 @@ function FallbackGeometry({
 /**
  * Renders appropriate geometry based on type
  */
-function PrimitiveGeometry({ type, size }: { type: string, size: [number, number, number] }) {
+function PrimitiveGeometry({ type, size }: { type: string, size: number[] }) {
     // Ensure size is valid for R3F args
-    const safeSize: [number, number, number] = size || [1, 1, 1]
+    const safeSize: [number, number, number] = [
+        Number.isFinite(size?.[0]) ? size[0] : 1,
+        Number.isFinite(size?.[1]) ? size[1] : 1,
+        Number.isFinite(size?.[2]) ? size[2] : 1
+    ]
 
     switch (type) {
         case 'box':
