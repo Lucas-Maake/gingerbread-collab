@@ -1,8 +1,7 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getJoinRoomErrorMessage } from '../../../../shared/userFacingErrors.js'
 import { useGameStore, initSocketListeners } from '../../context/gameStore'
-import Scene from '../3d/Scene'
 import PresenceBar from './PresenceBar'
 import PieceTray from './PieceTray'
 import MuteButton from './MuteButton'
@@ -20,6 +19,8 @@ import BuildHistoryPanel from './BuildHistoryPanel'
 import OnboardingChecklist from './OnboardingChecklist'
 import SnapshotShareCard from './SnapshotShareCard'
 import './RoomPage.css'
+
+const Scene = lazy(() => import('../3d/Scene'))
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
     if (navigator.clipboard?.writeText && window.isSecureContext) {
@@ -255,7 +256,14 @@ export default function RoomPage() {
 
             {/* 3D Scene */}
             <div className="canvas-container">
-                <Scene />
+                <Suspense fallback={(
+                    <div className="loading-container scene-loading" role="status" aria-live="polite">
+                        <div className="loading-spinner"></div>
+                        <p>Loading 3D scene...</p>
+                    </div>
+                )}>
+                    <Scene />
+                </Suspense>
             </div>
 
             {/* Piece Tray */}
