@@ -1,41 +1,20 @@
-import { create } from 'zustand'
-import * as socket from '../utils/socket'
-import { playGlobalSound, SoundType } from '../hooks/useSoundEffects'
+import { createWithEqualityFn } from 'zustand/traditional'
+import { SERVER_EVENTS } from '../../../../shared/socketContracts.js'
+import * as socket from '../../utils/socket'
+import { playGlobalSound, SoundType } from '../../hooks/useSoundEffects'
+import { getInitialTableSnowEnabled, getPreferredUserName } from './preferences'
+import { buildSnapshotMaps } from './snapshot'
+import { applyStarterTemplate as applyStarterTemplatePlan } from '../../templates/starterTemplates'
+import type { GameState } from './types'
 import type {
     PieceState,
-    PieceType,
-    UserState,
-    WallState,
-    IcingState,
-    ChatMessage,
-    Position,
-    Normal,
+    PieceProperties,
     RoomSnapshot,
-    SnapInfo
-} from '../types'
+    WallState,
+    BuildHistoryEntry,
+} from '../../types'
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
-export type BuildMode = 'select' | 'wall' | 'fence' | 'icing'
-export type RoofStyle = 'flat' | 'pitched'
-export type TimeOfDay = 'day' | 'night'
-
-function getInitialTableSnowEnabled() {
-    if (typeof window === 'undefined') return false
-    const saved = localStorage.getItem('tableSnowEnabled')
-    return saved === 'true'
-}
-
-function getPreferredUserName(fallbackName: string | null = null) {
-    if (typeof window === 'undefined') {
-        return fallbackName || 'Guest'
-    }
-
-    const saved = localStorage.getItem('nickname')
-    const trimmed = saved?.trim()
-    if (trimmed) return trimmed
-
-    return fallbackName || 'Guest'
-}
+export type { BuildMode, ConnectionState, GameState, RoofStyle, TimeOfDay } from './types'
 
 // Join orchestration state to prevent overlapping snapshot overwrites.
 let listenersInitialized = false
@@ -55,153 +34,10 @@ function invalidateJoinRequests() {
     joinInFlightKey = null
 }
 
-interface Notification {
-    type: 'info' | 'success' | 'warning' | 'error'
-    message: string
-}
-
-export interface GameState {
-    // ==================== CONNECTION STATE ====================
-    connectionState: ConnectionState
-    roomId: string | null
-    userId: string | null
-    hostUserId: string | null
-
-    // ==================== USER STATE ====================
-    users: Map<string, UserState>
-    localUser: UserState | null
-
-    // ==================== PIECE STATE ====================
-    pieces: Map<string, PieceState>
-    heldPieceId: string | null
-    snapInfo: SnapInfo | null
-    pieceCount: number
-    maxPieces: number
-
-    // ==================== BUILD MODE STATE ====================
-    buildMode: BuildMode
-    gridSnapEnabled: boolean
-    gridSize: number
-    roofStyle: RoofStyle
-    roofPitchAngle: number
-
-    // ==================== WALL STATE ====================
-    walls: Map<string, WallState>
-    wallDrawingStartPoint: [number, number] | null
-    fenceDrawingStartPoint: [number, number] | null
-
-    // ==================== ICING STATE ====================
-    icing: Map<string, IcingState>
-    icingDrawingPoints: Position[]
-    isDrawingIcing: boolean
-
-    // ==================== UI STATE ====================
-    isLoading: boolean
-    error: string | null
-    notification: Notification | null
-    timeOfDay: TimeOfDay
-    tableSnowEnabled: boolean
-
-    // ==================== CHAT STATE ====================
-    chatMessages: ChatMessage[]
-    isChatOpen: boolean
-    unreadChatCount: number
-
-    // ==================== UNDO STATE ====================
-    undoCount: number
-
-    // ==================== ACTIONS ====================
-
-    // Connection actions
-    setConnectionState: (state: ConnectionState) => void
-    connect: () => void
-    disconnect: () => void
-
-    // Room actions
-    joinRoom: (roomId: string, userName: string) => Promise<any>
-    leaveRoom: () => Promise<void>
-
-    // Piece actions
-    spawnPiece: (type: PieceType) => Promise<PieceState | null>
-    grabPiece: (pieceId: string) => Promise<PieceState | null>
-    releasePiece: (pos: Position, yaw: number, attachedTo?: string | null, snapNormal?: Normal | null) => Promise<void>
-    updatePieceTransform: (pieceId: string, pos: Position, yaw: number) => void
-    setSnapInfo: (snapInfo: SnapInfo | null) => void
-    deletePiece: (pieceId: string) => Promise<void>
-
-    // Cursor action
-    updateCursor: (x: number, y: number, z: number) => void
-
-    // Undo action
-    undo: () => Promise<void>
-
-    // Socket Event Handlers
-    handleUserJoined: (data: { user: UserState }) => void
-    handleUserLeft: (data: { userId: string; hostUserId?: string }) => void
-    handleCursorMoved: (data: { userId: string; cursor: Position | { x: number; y: number; z: number; t?: number } }) => void
-    handlePieceSpawned: (data: { piece: PieceState }) => void
-    handlePieceGrabbed: (data: { pieceId: string; heldBy: string }) => void
-    handlePieceReleased: (data: { piece: PieceState }) => void
-    handlePieceMoved: (data: { pieceId: string; pos: Position; yaw: number; version: number }) => void
-    handlePieceDeleted: (data: { pieceId: string }) => void
-    handleHostChanged: (data: { hostUserId?: string }) => void
-    handleRoomReset: (data: { snapshot?: RoomSnapshot }) => void
-
-    // UI Actions
-    clearError: () => void
-    clearNotification: () => void
-    showNotification: (type: 'info' | 'success' | 'warning' | 'error', message: string) => void
-    toggleTimeOfDay: () => void
-    setTimeOfDay: (time: TimeOfDay) => void
-    toggleTableSnow: () => void
-    setTableSnowEnabled: (enabled: boolean) => void
-
-    // Build Mode Actions
-    setBuildMode: (mode: BuildMode) => void
-    toggleGridSnap: () => void
-    setGridSnapEnabled: (enabled: boolean) => void
-    toggleRoofStyle: () => void
-    setRoofStyle: (style: RoofStyle) => void
-    setRoofPitchAngle: (angle: number) => void
-
-    // Wall Actions
-    setWallDrawingStartPoint: (point: [number, number] | null) => void
-    clearWallDrawingStartPoint: () => void
-    setFenceDrawingStartPoint: (point: [number, number] | null) => void
-    clearFenceDrawingStartPoint: () => void
-    createWall: (start: [number, number], end: [number, number], height?: number) => Promise<WallState | null>
-    createFenceLine: (start: [number, number], end: [number, number], spacing?: number) => Promise<PieceState[]>
-    deleteWall: (wallId: string) => Promise<void>
-    handleWallCreated: (data: { wall: WallState }) => void
-    handleWallDeleted: (data: {
-        wallId: string
-        deletedPieces?: string[]
-        deletedIcing?: string[]
-    }) => void
-
-    // Icing Actions
-    startIcingStroke: () => void
-    addIcingPoint: (point: Position) => void
-    endIcingStroke: () => void
-    clearIcingStroke: () => void
-    createIcing: (points: Position[], radius?: number, surfaceType?: 'ground' | 'wall' | 'roof', surfaceId?: string | null) => Promise<IcingState | null>
-    deleteIcing: (icingId: string) => Promise<void>
-    handleIcingCreated: (data: { icing: IcingState }) => void
-    handleIcingDeleted: (data: { icingId: string }) => void
-    resetRoom: () => Promise<void>
-
-    // Chat Actions
-    sendChatMessage: (message: string) => Promise<void>
-    toggleChat: () => void
-    openChat: () => void
-    closeChat: () => void
-    handleChatMessage: (data: ChatMessage) => void
-}
-
 /**
  * Main game state store using Zustand
  */
-export const useGameStore = create<GameState>((set, get) => ({
+export const useGameStore = createWithEqualityFn<GameState>((set, get) => ({
     // ==================== CONNECTION STATE ====================
     connectionState: 'disconnected',
     roomId: null,
@@ -250,6 +86,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     // ==================== UNDO STATE ====================
     undoCount: 0,
+    historyEntries: [],
 
     // ==================== ACTIONS ====================
 
@@ -272,6 +109,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             hostUserId: null,
             users: new Map(),
             pieces: new Map(),
+            historyEntries: [],
             localUser: null,
             heldPieceId: null,
             snapInfo: null,
@@ -338,36 +176,14 @@ export const useGameStore = create<GameState>((set, get) => ({
                 return response
             }
 
-            // Build users map
-            const usersMap = new Map<string, UserState>()
-            for (const user of snapshot.users) {
-                usersMap.set(user.userId, user)
-            }
-
-            // Build pieces map
-            const piecesMap = new Map<string, PieceState>()
-            for (const piece of snapshot.pieces) {
-                piecesMap.set(piece.pieceId, piece)
-            }
-
-            // Build walls map
-            const wallsMap = new Map<string, WallState>()
-            if (snapshot.walls) {
-                for (const wall of snapshot.walls) {
-                    wallsMap.set(wall.wallId, wall)
-                }
-            }
-
-            // Build icing map
-            const icingMap = new Map<string, IcingState>()
-            if (snapshot.icing) {
-                for (const stroke of snapshot.icing) {
-                    icingMap.set(stroke.icingId, stroke)
-                }
-            }
-
-            // Load chat history
-            const chatMessages = snapshot.chatMessages || []
+            const {
+                usersMap,
+                piecesMap,
+                wallsMap,
+                icingMap,
+                chatMessages,
+                historyEntries
+            } = buildSnapshotMaps(snapshot)
 
             set({
                 roomId: snapshot.roomId,
@@ -378,6 +194,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                 walls: wallsMap,
                 icing: icingMap,
                 chatMessages,
+                historyEntries,
                 localUser: (userId && usersMap.get(userId)) || null,
                 pieceCount: snapshot.pieceCount,
                 maxPieces: snapshot.maxPieces,
@@ -423,6 +240,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             walls: new Map(),
             icing: new Map(),
             chatMessages: [],
+            historyEntries: [],
             isChatOpen: false,
             unreadChatCount: 0,
             localUser: null,
@@ -545,6 +363,35 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         // Send to server (rate limited)
         socket.sendTransformUpdate(pieceId, pos, yaw)
+    },
+
+    updatePieceProperties: async (pieceId, properties) => {
+        const pieces = new Map(get().pieces)
+        const piece = pieces.get(pieceId)
+        if (!piece) return
+
+        const previousPiece = { ...piece }
+        const nextPiece = {
+            ...piece,
+            ...properties,
+            version: piece.version + 1
+        }
+
+        pieces.set(pieceId, nextPiece)
+        set({ pieces })
+
+        try {
+            const response = await socket.updatePieceProperties(pieceId, properties)
+            if (response.piece) {
+                const latestPieces = new Map(get().pieces)
+                latestPieces.set(pieceId, response.piece)
+                set({ pieces: latestPieces })
+            }
+        } catch (error: any) {
+            const latestPieces = new Map(get().pieces)
+            latestPieces.set(pieceId, previousPiece)
+            set({ pieces: latestPieces, error: error.message })
+        }
     },
 
     // Set snap info for held piece (used for decorative piece orientation)
@@ -670,6 +517,20 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
     },
 
+    handlePiecePropertiesUpdated: (data) => {
+        const pieces = new Map(get().pieces)
+        const piece = pieces.get(data.pieceId)
+        if (piece) {
+            const properties = data.properties as PieceProperties
+            pieces.set(data.pieceId, {
+                ...piece,
+                ...properties,
+                version: data.version
+            })
+            set({ pieces })
+        }
+    },
+
     // Handle piece deleted
     handlePieceDeleted: (data) => {
         const pieces = new Map(get().pieces)
@@ -695,34 +556,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Handle room reset
     handleRoomReset: (data) => {
         const snapshot = (data.snapshot || {}) as Partial<RoomSnapshot>
-
-        const usersMap = new Map<string, UserState>()
-        if (snapshot.users) {
-            for (const user of snapshot.users) {
-                usersMap.set(user.userId, user)
-            }
-        }
-
-        const piecesMap = new Map<string, PieceState>()
-        if (snapshot.pieces) {
-            for (const piece of snapshot.pieces) {
-                piecesMap.set(piece.pieceId, piece)
-            }
-        }
-
-        const wallsMap = new Map<string, WallState>()
-        if (snapshot.walls) {
-            for (const wall of snapshot.walls) {
-                wallsMap.set(wall.wallId, wall)
-            }
-        }
-
-        const icingMap = new Map<string, IcingState>()
-        if (snapshot.icing) {
-            for (const stroke of snapshot.icing) {
-                icingMap.set(stroke.icingId, stroke)
-            }
-        }
+        const {
+            usersMap,
+            piecesMap,
+            wallsMap,
+            icingMap,
+            chatMessages,
+            historyEntries
+        } = buildSnapshotMaps(snapshot)
 
         set({
             users: usersMap,
@@ -730,7 +571,8 @@ export const useGameStore = create<GameState>((set, get) => ({
             pieces: piecesMap,
             walls: wallsMap,
             icing: icingMap,
-            chatMessages: snapshot.chatMessages || get().chatMessages,
+            chatMessages: snapshot.chatMessages !== undefined ? chatMessages : get().chatMessages,
+            historyEntries: snapshot.historyEntries !== undefined ? historyEntries : get().historyEntries,
             pieceCount: snapshot.pieceCount || 0,
             maxPieces: snapshot.maxPieces || get().maxPieces,
             heldPieceId: null,
@@ -742,6 +584,12 @@ export const useGameStore = create<GameState>((set, get) => ({
             undoCount: 0,
             hostUserId: snapshot.hostUserId || get().hostUserId
         })
+    },
+
+    handleHistoryEntryAdded: (data) => {
+        const entry = data.entry as BuildHistoryEntry
+        const historyEntries = [...get().historyEntries, entry].slice(-30)
+        set({ historyEntries })
     },
 
     // Clear error/notification
@@ -1029,6 +877,36 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
     },
 
+    applyStarterTemplate: async (templateId) => {
+        const state = get()
+        if (state.pieceCount > 0 || state.walls.size > 0) {
+            set({ notification: { type: 'warning', message: 'Starter templates need a blank room' } })
+            return
+        }
+
+        set({
+            error: null,
+            buildMode: 'select',
+            wallDrawingStartPoint: null,
+            fenceDrawingStartPoint: null,
+            isDrawingIcing: false,
+            icingDrawingPoints: [],
+        })
+
+        try {
+            await applyStarterTemplatePlan(templateId, {
+                createWall: (start, end, height) => get().createWall(start, end, height),
+                spawnPiece: (type) => get().spawnPiece(type),
+                releasePiece: (pos, yaw, attachedTo, snapNormal) => get().releasePiece(pos, yaw, attachedTo, snapNormal),
+            })
+            set({ notification: { type: 'success', message: 'Starter template added' } })
+        } catch (error: any) {
+            const message = error.message || 'Could not apply starter template'
+            set({ error: message })
+            throw new Error(message)
+        }
+    },
+
     // Icing socket event handlers
     handleIcingCreated: (data) => {
         const icing = new Map(get().icing)
@@ -1127,29 +1005,31 @@ export function initSocketListeners() {
     })
 
     // Use getState() in handlers to always get fresh store state
-    socket.on('user_joined', (data) => useGameStore.getState().handleUserJoined(data))
-    socket.on('user_left', (data) => useGameStore.getState().handleUserLeft(data))
-    socket.on('host_changed', (data) => useGameStore.getState().handleHostChanged(data))
-    socket.on('cursor_moved', (data) => useGameStore.getState().handleCursorMoved(data))
-    socket.on('piece_spawned', (data) => useGameStore.getState().handlePieceSpawned(data))
-    socket.on('piece_grabbed', (data) => useGameStore.getState().handlePieceGrabbed(data))
-    socket.on('piece_released', (data) => useGameStore.getState().handlePieceReleased(data))
-    socket.on('piece_moved', (data) => useGameStore.getState().handlePieceMoved(data))
-    socket.on('piece_deleted', (data) => useGameStore.getState().handlePieceDeleted(data))
+    socket.on(SERVER_EVENTS.USER_JOINED, (data) => useGameStore.getState().handleUserJoined(data))
+    socket.on(SERVER_EVENTS.USER_LEFT, (data) => useGameStore.getState().handleUserLeft(data))
+    socket.on(SERVER_EVENTS.HOST_CHANGED, (data) => useGameStore.getState().handleHostChanged(data))
+    socket.on(SERVER_EVENTS.CURSOR_MOVED, (data) => useGameStore.getState().handleCursorMoved(data))
+    socket.on(SERVER_EVENTS.PIECE_SPAWNED, (data) => useGameStore.getState().handlePieceSpawned(data))
+    socket.on(SERVER_EVENTS.PIECE_GRABBED, (data) => useGameStore.getState().handlePieceGrabbed(data))
+    socket.on(SERVER_EVENTS.PIECE_RELEASED, (data) => useGameStore.getState().handlePieceReleased(data))
+    socket.on(SERVER_EVENTS.PIECE_MOVED, (data) => useGameStore.getState().handlePieceMoved(data))
+    socket.on(SERVER_EVENTS.PIECE_PROPERTIES_UPDATED, (data) => useGameStore.getState().handlePiecePropertiesUpdated(data))
+    socket.on(SERVER_EVENTS.PIECE_DELETED, (data) => useGameStore.getState().handlePieceDeleted(data))
+    socket.on(SERVER_EVENTS.HISTORY_ENTRY_ADDED, (data) => useGameStore.getState().handleHistoryEntryAdded(data))
 
     // Wall events
-    socket.on('wall_segment_created', (data) => useGameStore.getState().handleWallCreated(data))
-    socket.on('wall_segment_deleted', (data) => useGameStore.getState().handleWallDeleted(data))
+    socket.on(SERVER_EVENTS.WALL_SEGMENT_CREATED, (data) => useGameStore.getState().handleWallCreated(data))
+    socket.on(SERVER_EVENTS.WALL_SEGMENT_DELETED, (data) => useGameStore.getState().handleWallDeleted(data))
 
     // Icing events
-    socket.on('icing_stroke_created', (data) => useGameStore.getState().handleIcingCreated(data))
-    socket.on('icing_stroke_deleted', (data) => useGameStore.getState().handleIcingDeleted(data))
+    socket.on(SERVER_EVENTS.ICING_STROKE_CREATED, (data) => useGameStore.getState().handleIcingCreated(data))
+    socket.on(SERVER_EVENTS.ICING_STROKE_DELETED, (data) => useGameStore.getState().handleIcingDeleted(data))
 
     // Chat events
-    socket.on('chat_message', (data) => useGameStore.getState().handleChatMessage(data))
+    socket.on(SERVER_EVENTS.CHAT_MESSAGE, (data) => useGameStore.getState().handleChatMessage(data))
 
     // Room events
-    socket.on('room_reset', (data) => useGameStore.getState().handleRoomReset(data))
+    socket.on(SERVER_EVENTS.ROOM_RESET, (data) => useGameStore.getState().handleRoomReset(data))
 }
 
 /**

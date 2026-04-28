@@ -1,23 +1,51 @@
 import { roomManager } from '../rooms/RoomManager.js'
 import { PieceState, WallState, IcingState } from '../rooms/RoomState.js'
 import { RateLimiter, BroadcastThrottler } from '../utils/TokenBucket.js'
-import { RATE_LIMITS, PIECE_TYPES, ROOM_CONFIG } from '../constants/config.js'
+import { RATE_LIMITS, ROOM_CONFIG } from '../constants/config.js'
+import {
+  SERVER_EVENTS,
+  SOCKET_EVENTS,
+  validateCreateFenceLinePayload,
+  validateCreateIcingStrokePayload,
+  validateCreateWallSegmentPayload,
+  validateCursorUpdatePayload,
+  validateIcingIdPayload,
+  validateJoinRoomPayload,
+  validatePieceIdPayload,
+  validateReleasePiecePayload,
+  validateSendChatMessagePayload,
+  validateSpawnPiecePayload,
+  validateUpdatePiecePropertiesPayload,
+  validateTransformUpdatePayload,
+  validateWallIdPayload
+} from '../../../shared/socketContracts.js'
 
 // Rate limiter instance
 const rateLimiter = new RateLimiter()
 
 // Broadcast throttler for transform updates
 const broadcastThrottler = new BroadcastThrottler(RATE_LIMITS.MAX_BROADCAST_HZ)
-const VALID_SURFACE_TYPES = new Set(['ground', 'wall', 'roof'])
-const MAX_WALL_HEIGHT = 5
-const MAX_ICING_RADIUS = 1
 
-function isFiniteVector2(value) {
-  return Array.isArray(value) && value.length === 2 && value.every(Number.isFinite)
+function formatLabel(value) {
+  if (!value || typeof value !== 'string') return 'item'
+  return value
+    .toLowerCase()
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
-function isFiniteVector3(value) {
-  return Array.isArray(value) && value.length === 3 && value.every(Number.isFinite)
+function recordHistory(io, room, user, action, description, options = {}) {
+  const entry = room.addHistoryEntry({
+    action,
+    user,
+    description,
+    subjectType: options.subjectType || null,
+    subjectId: options.subjectId || null
+  })
+
+  io.to(room.roomId).emit(SERVER_EVENTS.HISTORY_ENTRY_ADDED, { entry })
+  return entry
 }
 
 /**
@@ -30,6 +58,7 @@ export function registerSocketHandlers(io, socket) {
   rateLimiter.addConnection(socketId, {
     cursor: RATE_LIMITS.CURSOR_UPDATES,
     transform: RATE_LIMITS.TRANSFORM_UPDATES,
+    pieceProperties: RATE_LIMITS.PIECE_PROPERTIES,
     join: RATE_LIMITS.JOIN_ATTEMPTS,
     spawnPiece: RATE_LIMITS.SPAWN_PIECE,
     deletePiece: RATE_LIMITS.DELETE_PIECE,
@@ -58,19 +87,19 @@ export function registerSocketHandlers(io, socket) {
    * Join a room
    * @param {Object} data - { roomId: string, userName?: string, previousUserId?: string }
    */
-  socket.on('join_room', async (data, callback) => {
-    const { roomId, userName, previousUserId } = data
+  socket.on(SOCKET_EVENTS.JOIN_ROOM, async (data, callback) => {
+    const payload = validateJoinRoomPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
+    }
+
+    const { roomId, userName, previousUserId } = payload.value
 
     if (!previousUserId && isRateLimited('join', callback)) {
       return
     }
 
-    if (!roomId || typeof roomId !== 'string' || roomId.length !== 6) {
-      return callback({ error: 'INVALID_ROOM_CODE' })
-    }
-
-    const normalizedRoomId = roomId.toUpperCase()
-    const result = roomManager.joinRoom(normalizedRoomId, socketId, userName, previousUserId)
+    const result = roomManager.joinRoom(roomId, socketId, userName, previousUserId)
 
     if (result.error) {
       return callback({ error: result.error })
@@ -78,15 +107,15 @@ export function registerSocketHandlers(io, socket) {
 
     try {
       // Ensure room membership is active before acknowledging join
-      await socket.join(normalizedRoomId)
+      await socket.join(roomId)
     } catch (error) {
-      console.error('Failed to join socket.io room:', normalizedRoomId, error)
+      console.error('Failed to join socket.io room:', roomId, error)
       return callback({ error: 'JOIN_FAILED' })
     }
 
     // Notify others in room (only if this is a new user, not a reconnect)
     if (!result.isReconnect) {
-      socket.to(normalizedRoomId).emit('user_joined', {
+      socket.to(roomId).emit(SERVER_EVENTS.USER_JOINED, {
         user: result.user.toJSON()
       })
     }
@@ -104,7 +133,7 @@ export function registerSocketHandlers(io, socket) {
   /**
    * Leave current room
    */
-  socket.on('leave_room', (callback) => {
+  socket.on(SOCKET_EVENTS.LEAVE_ROOM, (callback) => {
     handleDisconnect()
     if (callback) callback({ success: true })
   })
@@ -115,7 +144,7 @@ export function registerSocketHandlers(io, socket) {
    * Update cursor position
    * @param {Object} data - { x: number, y: number, z: number }
    */
-  socket.on('cursor_update', (data) => {
+  socket.on(SOCKET_EVENTS.CURSOR_UPDATE, (data) => {
     // Rate limit check
     if (!rateLimiter.allowCursorUpdate(socketId)) {
       return // Drop update silently
@@ -127,11 +156,14 @@ export function registerSocketHandlers(io, socket) {
     const user = room.getUserBySocket(socketId)
     if (!user) return
 
-    const { x, y, z } = data
+    const payload = validateCursorUpdatePayload(data)
+    if (payload.error) return
+
+    const { x, y, z } = payload.value
     user.updateCursor(x, y, z)
 
     // Broadcast to others in room
-    socket.to(room.roomId).emit('cursor_moved', {
+    socket.to(room.roomId).emit(SERVER_EVENTS.CURSOR_MOVED, {
       userId: user.userId,
       cursor: user.cursor
     })
@@ -143,7 +175,7 @@ export function registerSocketHandlers(io, socket) {
    * Spawn a new piece
    * @param {Object} data - { type: string }
    */
-  socket.on('spawn_piece', (data, callback) => {
+  socket.on(SOCKET_EVENTS.SPAWN_PIECE, (data, callback) => {
     if (isRateLimited('spawnPiece', callback)) {
       return
     }
@@ -158,12 +190,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { type } = data
-
-    // Validate piece type
-    if (!Object.values(PIECE_TYPES).includes(type)) {
-      return callback({ error: 'INVALID_PIECE_TYPE' })
+    const payload = validateSpawnPiecePayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
     }
+
+    const { type } = payload.value
 
     const result = room.spawnPiece(type, user.userId)
 
@@ -179,9 +211,13 @@ export function registerSocketHandlers(io, socket) {
     })
 
     // Broadcast to all in room (including sender)
-    io.to(room.roomId).emit('piece_spawned', {
+    io.to(room.roomId).emit(SERVER_EVENTS.PIECE_SPAWNED, {
       piece: result.piece.toJSON(),
       spawnedBy: user.userId
+    })
+    recordHistory(io, room, user, 'piece_spawned', `added ${formatLabel(result.piece.type)}`, {
+      subjectType: 'piece',
+      subjectId: result.piece.pieceId
     })
 
     roomManager.markRoomDirty()
@@ -193,7 +229,7 @@ export function registerSocketHandlers(io, socket) {
    * Grab a piece (request lock)
    * @param {Object} data - { pieceId: string }
    */
-  socket.on('grab_piece', (data, callback) => {
+  socket.on(SOCKET_EVENTS.GRAB_PIECE, (data, callback) => {
     console.log('grab_piece event received:', data)
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
@@ -207,7 +243,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { pieceId } = data
+    const payload = validatePieceIdPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
+    }
+
+    const { pieceId } = payload.value
     console.log('Attempting to grab piece:', pieceId, 'for user:', user.userId)
     const result = room.grabPiece(pieceId, user.userId)
     console.log('grabPiece result:', result)
@@ -220,7 +261,7 @@ export function registerSocketHandlers(io, socket) {
     }
 
     // Broadcast lock to all in room
-    io.to(room.roomId).emit('piece_grabbed', {
+    io.to(room.roomId).emit(SERVER_EVENTS.PIECE_GRABBED, {
       pieceId,
       heldBy: user.userId,
       userName: user.name,
@@ -234,7 +275,7 @@ export function registerSocketHandlers(io, socket) {
    * Release a piece
    * @param {Object} data - { pieceId: string, pos: [x, y, z], yaw: number, attachedTo?: string, snapNormal?: [x, y, z] }
    */
-  socket.on('release_piece', (data, callback) => {
+  socket.on(SOCKET_EVENTS.RELEASE_PIECE, (data, callback) => {
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -245,15 +286,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { pieceId, pos, yaw, attachedTo, snapNormal } = data
-
-    if (!isFiniteVector3(pos) ||
-      !Number.isFinite(yaw) ||
-      !(attachedTo === null || attachedTo === undefined || typeof attachedTo === 'string') ||
-      !(snapNormal === null || snapNormal === undefined || isFiniteVector3(snapNormal))) {
-      return callback({ error: 'INVALID_TRANSFORM' })
+    const payload = validateReleasePiecePayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
     }
 
+    const { pieceId, pos, yaw, attachedTo, snapNormal } = payload.value
     const piece = room.pieces.get(pieceId)
 
     // Store previous position for undo
@@ -282,10 +320,14 @@ export function registerSocketHandlers(io, socket) {
     broadcastThrottler.forceBroadcast(pieceId)
 
     // Broadcast release to all in room
-    io.to(room.roomId).emit('piece_released', {
+    io.to(room.roomId).emit(SERVER_EVENTS.PIECE_RELEASED, {
       piece: result.piece.toJSON(),
       adjusted: result.adjusted,
       reason: result.reason
+    })
+    recordHistory(io, room, user, 'piece_released', `placed ${formatLabel(result.piece.type)}`, {
+      subjectType: 'piece',
+      subjectId: result.piece.pieceId
     })
 
     roomManager.markRoomDirty()
@@ -302,7 +344,7 @@ export function registerSocketHandlers(io, socket) {
    * Update piece transform while dragging
    * @param {Object} data - { pieceId: string, pos: [x, y, z], yaw: number }
    */
-  socket.on('transform_update', (data) => {
+  socket.on(SOCKET_EVENTS.TRANSFORM_UPDATE, (data) => {
     // Rate limit check
     if (!rateLimiter.allowTransformUpdate(socketId)) {
       return // Drop update silently
@@ -314,7 +356,10 @@ export function registerSocketHandlers(io, socket) {
     const user = room.getUserBySocket(socketId)
     if (!user) return
 
-    const { pieceId, pos, yaw } = data
+    const payload = validateTransformUpdatePayload(data)
+    if (payload.error) return
+
+    const { pieceId, pos, yaw } = payload.value
 
     const result = room.updatePieceTransform(pieceId, user.userId, pos, yaw)
     if (result.error) return
@@ -325,7 +370,7 @@ export function registerSocketHandlers(io, socket) {
     }
 
     // Broadcast to others in room
-    socket.to(room.roomId).emit('piece_moved', {
+    socket.to(room.roomId).emit(SERVER_EVENTS.PIECE_MOVED, {
       pieceId,
       pos: result.piece.pos,
       yaw: result.piece.yaw,
@@ -334,10 +379,56 @@ export function registerSocketHandlers(io, socket) {
   })
 
   /**
+   * Update held piece properties
+   * @param {Object} data - { pieceId: string, properties: { colorVariant?, scale?, snapPreference? } }
+   */
+  socket.on(SOCKET_EVENTS.UPDATE_PIECE_PROPERTIES, (data, callback) => {
+    if (isRateLimited('pieceProperties', callback)) {
+      return
+    }
+
+    const room = roomManager.getRoomForSocket(socketId)
+    if (!room) {
+      return callback({ error: 'NOT_IN_ROOM' })
+    }
+
+    const user = room.getUserBySocket(socketId)
+    if (!user) {
+      return callback({ error: 'USER_NOT_FOUND' })
+    }
+
+    const payload = validateUpdatePiecePropertiesPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
+    }
+
+    const { pieceId, properties } = payload.value
+    const result = room.updatePieceProperties(pieceId, user.userId, properties)
+
+    if (result.error) {
+      return callback({ error: result.error })
+    }
+
+    io.to(room.roomId).emit(SERVER_EVENTS.PIECE_PROPERTIES_UPDATED, {
+      pieceId,
+      properties,
+      version: result.piece.version,
+      updatedBy: user.userId
+    })
+    recordHistory(io, room, user, 'piece_properties_updated', `edited ${formatLabel(result.piece.type)}`, {
+      subjectType: 'piece',
+      subjectId: pieceId
+    })
+
+    roomManager.markRoomDirty()
+    callback({ success: true, piece: result.piece.toJSON() })
+  })
+
+  /**
    * Delete a piece
    * @param {Object} data - { pieceId: string }
    */
-  socket.on('delete_piece', (data, callback) => {
+  socket.on(SOCKET_EVENTS.DELETE_PIECE, (data, callback) => {
     if (isRateLimited('deletePiece', callback)) {
       return
     }
@@ -352,15 +443,20 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { pieceId } = data
+    const payload = validatePieceIdPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
+    }
+
+    const { pieceId } = payload.value
     const piece = room.pieces.get(pieceId)
 
     // Store for undo
     const pieceData = piece ? piece.toJSON() : null
     const attachedPieceData = piece
       ? Array.from(room.pieces.values())
-        .filter(attachedPiece => attachedPiece.attachedTo === pieceId)
-        .map(attachedPiece => attachedPiece.toJSON())
+        .filter(candidate => candidate.attachedTo === piece.pieceId)
+        .map(candidate => candidate.toJSON())
       : []
 
     const result = room.deletePiece(pieceId, user.userId)
@@ -379,15 +475,19 @@ export function registerSocketHandlers(io, socket) {
     }
 
     // Broadcast deletion to all in room
-    io.to(room.roomId).emit('piece_deleted', {
+    io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
       pieceId,
       deletedBy: user.userId
+    })
+    recordHistory(io, room, user, 'piece_deleted', `deleted ${formatLabel(pieceData?.type)}`, {
+      subjectType: 'piece',
+      subjectId: pieceId
     })
 
     // Broadcast cascade deletions for pieces attached to the deleted parent piece
     if (result.deletedAttachedPieces && result.deletedAttachedPieces.length > 0) {
       for (const attachedPieceId of result.deletedAttachedPieces) {
-        io.to(room.roomId).emit('piece_deleted', {
+        io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
           pieceId: attachedPieceId,
           deletedBy: user.userId,
           reason: 'ATTACHED_PARENT_DELETED'
@@ -405,7 +505,7 @@ export function registerSocketHandlers(io, socket) {
   /**
    * Undo last action
    */
-  socket.on('undo', (callback) => {
+  socket.on(SOCKET_EVENTS.UNDO, (callback) => {
     if (isRateLimited('undo', callback)) {
       return
     }
@@ -432,7 +532,7 @@ export function registerSocketHandlers(io, socket) {
         // Undo spawn = delete the piece
         undoResult = room.deletePiece(action.pieceId, user.userId)
         if (!undoResult.error) {
-          io.to(room.roomId).emit('piece_deleted', {
+          io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
             pieceId: action.pieceId,
             deletedBy: user.userId,
             reason: 'UNDO'
@@ -458,7 +558,7 @@ export function registerSocketHandlers(io, socket) {
           room.pieces.set(restoredPiece.pieceId, restoredPiece)
           room.setOccupancy(restoredPiece)
 
-          io.to(room.roomId).emit('piece_spawned', {
+          io.to(room.roomId).emit(SERVER_EVENTS.PIECE_SPAWNED, {
             piece: restoredPiece.toJSON(),
             spawnedBy: restoredPiece.spawnedBy,
             reason: 'UNDO'
@@ -474,7 +574,7 @@ export function registerSocketHandlers(io, socket) {
           piece.updateTransform(action.prevPos, action.prevYaw)
           room.setOccupancy(piece)
 
-          io.to(room.roomId).emit('piece_moved', {
+          io.to(room.roomId).emit(SERVER_EVENTS.PIECE_MOVED, {
             pieceId: action.pieceId,
             pos: action.prevPos,
             yaw: action.prevYaw,
@@ -490,7 +590,7 @@ export function registerSocketHandlers(io, socket) {
         if (!undoResult.error) {
           if (undoResult.deletedPieces && undoResult.deletedPieces.length > 0) {
             for (const pieceId of undoResult.deletedPieces) {
-              io.to(room.roomId).emit('piece_deleted', {
+              io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
                 pieceId,
                 deletedBy: user.userId,
                 reason: 'WALL_DELETED'
@@ -499,14 +599,14 @@ export function registerSocketHandlers(io, socket) {
           }
           if (undoResult.deletedIcing && undoResult.deletedIcing.length > 0) {
             for (const icingId of undoResult.deletedIcing) {
-              io.to(room.roomId).emit('icing_stroke_deleted', {
+              io.to(room.roomId).emit(SERVER_EVENTS.ICING_STROKE_DELETED, {
                 icingId,
                 deletedBy: user.userId,
                 reason: 'WALL_DELETED'
               })
             }
           }
-          io.to(room.roomId).emit('wall_segment_deleted', {
+          io.to(room.roomId).emit(SERVER_EVENTS.WALL_SEGMENT_DELETED, {
             wallId: action.wallId,
             deletedBy: user.userId,
             reason: 'UNDO',
@@ -523,7 +623,7 @@ export function registerSocketHandlers(io, socket) {
           for (const pieceId of action.pieceIds) {
             const deleteResult = room.deletePiece(pieceId, user.userId)
             if (!deleteResult.error) {
-              io.to(room.roomId).emit('piece_deleted', {
+              io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
                 pieceId,
                 deletedBy: user.userId,
                 reason: 'UNDO'
@@ -531,7 +631,7 @@ export function registerSocketHandlers(io, socket) {
 
               if (deleteResult.deletedAttachedPieces && deleteResult.deletedAttachedPieces.length > 0) {
                 for (const attachedPieceId of deleteResult.deletedAttachedPieces) {
-                  io.to(room.roomId).emit('piece_deleted', {
+                  io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
                     pieceId: attachedPieceId,
                     deletedBy: user.userId,
                     reason: 'ATTACHED_PARENT_DELETED'
@@ -549,7 +649,7 @@ export function registerSocketHandlers(io, socket) {
         const newWall = new WallState(wallData.start, wallData.end, wallData.height, wallData.createdBy)
         room.walls.set(newWall.wallId, newWall)
 
-        io.to(room.roomId).emit('wall_segment_created', {
+        io.to(room.roomId).emit(SERVER_EVENTS.WALL_SEGMENT_CREATED, {
           wall: newWall.toJSON(),
           createdBy: user.userId,
           reason: 'UNDO'
@@ -560,7 +660,7 @@ export function registerSocketHandlers(io, socket) {
         // Undo icing creation = delete the icing
         undoResult = room.deleteIcing(action.icingId, user.userId)
         if (!undoResult.error) {
-          io.to(room.roomId).emit('icing_stroke_deleted', {
+          io.to(room.roomId).emit(SERVER_EVENTS.ICING_STROKE_DELETED, {
             icingId: action.icingId,
             deletedBy: user.userId,
             reason: 'UNDO'
@@ -580,7 +680,7 @@ export function registerSocketHandlers(io, socket) {
         )
         room.icing.set(newIcing.icingId, newIcing)
 
-        io.to(room.roomId).emit('icing_stroke_created', {
+        io.to(room.roomId).emit(SERVER_EVENTS.ICING_STROKE_CREATED, {
           icing: newIcing.toJSON(),
           createdBy: user.userId,
           reason: 'UNDO'
@@ -591,6 +691,7 @@ export function registerSocketHandlers(io, socket) {
         return callback({ error: 'UNKNOWN_ACTION' })
     }
 
+    recordHistory(io, room, user, 'undo', `undid ${formatLabel(action.action)}`)
     callback({ success: true, action: action.action, undoCount: user.undoStack.length })
     roomManager.markRoomDirty()
   })
@@ -601,7 +702,7 @@ export function registerSocketHandlers(io, socket) {
    * Create a fence line (spawns multiple fence posts)
    * @param {Object} data - { start: [x, z], end: [x, z], spacing?: number }
    */
-  socket.on('create_fence_line', (data, callback) => {
+  socket.on(SOCKET_EVENTS.CREATE_FENCE_LINE, (data, callback) => {
     if (isRateLimited('createFenceLine', callback)) {
       return
     }
@@ -616,11 +717,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { start, end, spacing = 0.5 } = data
-
-    if (!isFiniteVector2(start) || !isFiniteVector2(end)) {
-      return callback({ error: 'INVALID_FENCE_DATA' })
+    const payload = validateCreateFenceLinePayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
     }
+
+    const { start, end, spacing } = payload.value
 
     const result = room.createFenceLine(start, end, spacing, user.userId)
     if (result.error) {
@@ -637,11 +739,14 @@ export function registerSocketHandlers(io, socket) {
     }
 
     for (const piece of pieces) {
-      io.to(room.roomId).emit('piece_spawned', {
+      io.to(room.roomId).emit(SERVER_EVENTS.PIECE_SPAWNED, {
         piece: piece.toJSON(),
         spawnedBy: user.userId,
         reason: 'FENCE_LINE'
       })
+    }
+    if (pieces.length > 0) {
+      recordHistory(io, room, user, 'fence_line_created', `created fence line (${pieces.length} posts)`)
     }
 
     callback({
@@ -656,7 +761,7 @@ export function registerSocketHandlers(io, socket) {
    * Create a wall segment
    * @param {Object} data - { start: [x, z], end: [x, z], height?: number }
    */
-  socket.on('create_wall_segment', (data, callback) => {
+  socket.on(SOCKET_EVENTS.CREATE_WALL_SEGMENT, (data, callback) => {
     if (isRateLimited('createWall', callback)) {
       return
     }
@@ -671,13 +776,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { start, end, height = 1.5 } = data
-
-    // Validate input
-    if (!isFiniteVector2(start) || !isFiniteVector2(end) ||
-      !Number.isFinite(height) || height <= 0 || height > MAX_WALL_HEIGHT) {
-      return callback({ error: 'INVALID_WALL_DATA' })
+    const payload = validateCreateWallSegmentPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
     }
+
+    const { start, end, height } = payload.value
 
     const result = room.createWall(start, end, height, user.userId)
 
@@ -692,9 +796,13 @@ export function registerSocketHandlers(io, socket) {
     })
 
     // Broadcast to all in room
-    io.to(room.roomId).emit('wall_segment_created', {
+    io.to(room.roomId).emit(SERVER_EVENTS.WALL_SEGMENT_CREATED, {
       wall: result.wall.toJSON(),
       createdBy: user.userId
+    })
+    recordHistory(io, room, user, 'wall_created', 'created wall', {
+      subjectType: 'wall',
+      subjectId: result.wall.wallId
     })
 
     roomManager.markRoomDirty()
@@ -706,7 +814,7 @@ export function registerSocketHandlers(io, socket) {
    * Delete a wall segment
    * @param {Object} data - { wallId: string }
    */
-  socket.on('delete_wall_segment', (data, callback) => {
+  socket.on(SOCKET_EVENTS.DELETE_WALL_SEGMENT, (data, callback) => {
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -717,7 +825,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { wallId } = data
+    const payload = validateWallIdPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
+    }
+
+    const { wallId } = payload.value
     const wall = room.getWall(wallId)
 
     // Store for undo
@@ -740,7 +853,7 @@ export function registerSocketHandlers(io, socket) {
     // Broadcast cascade-deleted pieces
     if (result.deletedPieces && result.deletedPieces.length > 0) {
       for (const pieceId of result.deletedPieces) {
-        io.to(room.roomId).emit('piece_deleted', {
+        io.to(room.roomId).emit(SERVER_EVENTS.PIECE_DELETED, {
           pieceId,
           deletedBy: user.userId,
           reason: 'WALL_DELETED'
@@ -751,7 +864,7 @@ export function registerSocketHandlers(io, socket) {
     // Broadcast cascade-deleted icing
     if (result.deletedIcing && result.deletedIcing.length > 0) {
       for (const icingId of result.deletedIcing) {
-        io.to(room.roomId).emit('icing_stroke_deleted', {
+        io.to(room.roomId).emit(SERVER_EVENTS.ICING_STROKE_DELETED, {
           icingId,
           deletedBy: user.userId,
           reason: 'WALL_DELETED'
@@ -760,13 +873,17 @@ export function registerSocketHandlers(io, socket) {
     }
 
     // Broadcast wall deletion
-    io.to(room.roomId).emit('wall_segment_deleted', {
+    io.to(room.roomId).emit(SERVER_EVENTS.WALL_SEGMENT_DELETED, {
       wallId,
       deletedBy: user.userId,
       deletedPieces: result.deletedPieces || [],
       deletedIcing: result.deletedIcing || [],
       deletedRoofPieces: result.deletedRoofPieces || [],
       deletedRoofIcing: result.deletedRoofIcing || []
+    })
+    recordHistory(io, room, user, 'wall_deleted', 'deleted wall', {
+      subjectType: 'wall',
+      subjectId: wallId
     })
 
     roomManager.markRoomDirty()
@@ -780,7 +897,7 @@ export function registerSocketHandlers(io, socket) {
    * Create an icing stroke
    * @param {Object} data - { points: [[x,y,z],...], radius?: number, surfaceType?: string, surfaceId?: string }
    */
-  socket.on('create_icing_stroke', (data, callback) => {
+  socket.on(SOCKET_EVENTS.CREATE_ICING_STROKE, (data, callback) => {
     if (isRateLimited('createIcing', callback)) {
       return
     }
@@ -795,20 +912,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { points, radius = 0.05, surfaceType = 'ground', surfaceId = null } = data
-
-    // Validate input
-    const hasInvalidPoint = !Array.isArray(points) ||
-      points.length < 2 ||
-      !points.every(isFiniteVector3)
-
-    const hasInvalidRadius = !Number.isFinite(radius) || radius <= 0 || radius > MAX_ICING_RADIUS
-    const hasInvalidSurfaceType = !VALID_SURFACE_TYPES.has(surfaceType)
-    const hasInvalidSurfaceId = !(surfaceId === null || typeof surfaceId === 'string')
-
-    if (hasInvalidPoint || hasInvalidRadius || hasInvalidSurfaceType || hasInvalidSurfaceId) {
-      return callback({ error: 'INVALID_ICING_DATA' })
+    const payload = validateCreateIcingStrokePayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
     }
+
+    const { points, radius, surfaceType, surfaceId } = payload.value
 
     const result = room.createIcing(points, radius, surfaceType, surfaceId, user.userId)
 
@@ -823,9 +932,13 @@ export function registerSocketHandlers(io, socket) {
     })
 
     // Broadcast to all in room
-    io.to(room.roomId).emit('icing_stroke_created', {
+    io.to(room.roomId).emit(SERVER_EVENTS.ICING_STROKE_CREATED, {
       icing: result.icing.toJSON(),
       createdBy: user.userId
+    })
+    recordHistory(io, room, user, 'icing_created', 'added icing', {
+      subjectType: 'icing',
+      subjectId: result.icing.icingId
     })
 
     roomManager.markRoomDirty()
@@ -837,7 +950,7 @@ export function registerSocketHandlers(io, socket) {
    * Delete an icing stroke
    * @param {Object} data - { icingId: string }
    */
-  socket.on('delete_icing_stroke', (data, callback) => {
+  socket.on(SOCKET_EVENTS.DELETE_ICING_STROKE, (data, callback) => {
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -848,7 +961,12 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { icingId } = data
+    const payload = validateIcingIdPayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
+    }
+
+    const { icingId } = payload.value
     const icing = room.getIcing(icingId)
 
     // Store for undo
@@ -869,9 +987,13 @@ export function registerSocketHandlers(io, socket) {
     }
 
     // Broadcast to all in room
-    io.to(room.roomId).emit('icing_stroke_deleted', {
+    io.to(room.roomId).emit(SERVER_EVENTS.ICING_STROKE_DELETED, {
       icingId,
       deletedBy: user.userId
+    })
+    recordHistory(io, room, user, 'icing_deleted', 'deleted icing', {
+      subjectType: 'icing',
+      subjectId: icingId
     })
 
     roomManager.markRoomDirty()
@@ -886,14 +1008,14 @@ export function registerSocketHandlers(io, socket) {
 
     if (result && result.room && result.user) {
       // Notify others in room
-      socket.to(result.roomId).emit('user_left', {
+      socket.to(result.roomId).emit(SERVER_EVENTS.USER_LEFT, {
         userId: result.user.userId,
         userName: result.user.name,
         hostUserId: result.hostUserId
       })
 
       if (result.hostChanged) {
-        io.to(result.roomId).emit('host_changed', {
+        io.to(result.roomId).emit(SERVER_EVENTS.HOST_CHANGED, {
           hostUserId: result.hostUserId
         })
       }
@@ -903,7 +1025,7 @@ export function registerSocketHandlers(io, socket) {
       for (const piece of result.room.pieces.values()) {
         if (piece.heldBy === null && piece.updatedAt > Date.now() - 1000) {
           // Recently released piece - broadcast
-          io.to(result.roomId).emit('piece_released', {
+          io.to(result.roomId).emit(SERVER_EVENTS.PIECE_RELEASED, {
             piece: piece.toJSON(),
             reason: 'USER_DISCONNECTED'
           })
@@ -922,7 +1044,7 @@ export function registerSocketHandlers(io, socket) {
   /**
    * Request fresh snapshot (for reconnection)
    */
-  socket.on('request_snapshot', (callback) => {
+  socket.on(SOCKET_EVENTS.REQUEST_SNAPSHOT, (callback) => {
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -937,7 +1059,7 @@ export function registerSocketHandlers(io, socket) {
   /**
    * Ping for latency measurement
    */
-  socket.on('ping', (callback) => {
+  socket.on(SOCKET_EVENTS.PING, (callback) => {
     callback({ timestamp: Date.now() })
   })
 
@@ -947,7 +1069,7 @@ export function registerSocketHandlers(io, socket) {
    * Send a chat message
    * @param {Object} data - { message: string }
    */
-  socket.on('send_chat_message', (data, callback) => {
+  socket.on(SOCKET_EVENTS.SEND_CHAT_MESSAGE, (data, callback) => {
     if (isRateLimited('sendChat', callback)) {
       return
     }
@@ -962,24 +1084,18 @@ export function registerSocketHandlers(io, socket) {
       return callback({ error: 'USER_NOT_FOUND' })
     }
 
-    const { message } = data
-
-    // Validate message
-    if (!message || typeof message !== 'string') {
-      return callback({ error: 'INVALID_MESSAGE' })
+    const payload = validateSendChatMessagePayload(data)
+    if (payload.error) {
+      return callback({ error: payload.error })
     }
 
-    // Trim and limit message length
-    const trimmedMessage = message.trim().slice(0, 500)
-    if (trimmedMessage.length === 0) {
-      return callback({ error: 'EMPTY_MESSAGE' })
-    }
+    const { message } = payload.value
 
     // Create chat message
-    const chatMessage = room.addChatMessage(user.userId, user.name, user.color, trimmedMessage)
+    const chatMessage = room.addChatMessage(user.userId, user.name, user.color, message)
 
     // Broadcast to all in room (including sender)
-    io.to(room.roomId).emit('chat_message', chatMessage)
+    io.to(room.roomId).emit(SERVER_EVENTS.CHAT_MESSAGE, chatMessage)
 
     roomManager.markRoomDirty()
 
@@ -989,7 +1105,7 @@ export function registerSocketHandlers(io, socket) {
   /**
    * Get chat history
    */
-  socket.on('get_chat_history', (callback) => {
+  socket.on(SOCKET_EVENTS.GET_CHAT_HISTORY, (callback) => {
     const room = roomManager.getRoomForSocket(socketId)
     if (!room) {
       return callback({ error: 'NOT_IN_ROOM' })
@@ -1003,7 +1119,7 @@ export function registerSocketHandlers(io, socket) {
   /**
    * Reset room (host only) - clears pieces, walls, and icing
    */
-  socket.on('reset_room', (callback) => {
+  socket.on(SOCKET_EVENTS.RESET_ROOM, (callback) => {
     if (isRateLimited('resetRoom', callback)) {
       return
     }
@@ -1025,10 +1141,11 @@ export function registerSocketHandlers(io, socket) {
     room.resetRoom()
     broadcastThrottler.cleanup(new Set())
 
-    io.to(room.roomId).emit('room_reset', {
+    io.to(room.roomId).emit(SERVER_EVENTS.ROOM_RESET, {
       snapshot: room.getSnapshot(),
       resetBy: user.userId
     })
+    recordHistory(io, room, user, 'room_reset', 'reset the room')
 
     roomManager.markRoomDirty()
 

@@ -6,6 +6,7 @@ const DEFAULT_FENCE_SPACING = 0.5
 const VALID_SURFACE_TYPES = new Set(['ground', 'wall', 'roof'])
 const MAX_WALL_HEIGHT = 5
 const MAX_ICING_RADIUS = 1
+const MAX_HISTORY_ENTRIES = 30
 
 function sanitizeFenceSpacing(spacing) {
   if (!Number.isFinite(spacing) || spacing <= 0) {
@@ -128,6 +129,9 @@ export class PieceState {
     this.spawnedBy = spawnedBy
     this.attachedTo = null // wallId this piece is snapped to (for windows/doors)
     this.snapNormal = null // Surface normal when snapped [x, y, z] - for correct orientation
+    this.colorVariant = null
+    this.scale = 'normal'
+    this.snapPreference = null
     this.version = 1
     this.updatedAt = Date.now()
     this.lastValidPos = [...position]
@@ -141,6 +145,9 @@ export class PieceState {
     piece.heldBy = data.heldBy ?? null
     piece.attachedTo = data.attachedTo ?? null
     piece.snapNormal = data.snapNormal ?? null
+    piece.colorVariant = Number.isInteger(data.colorVariant) ? data.colorVariant : null
+    piece.scale = ['small', 'normal', 'large'].includes(data.scale) ? data.scale : 'normal'
+    piece.snapPreference = ['ground', 'wall', 'roof'].includes(data.snapPreference) ? data.snapPreference : null
     piece.version = Number.isFinite(data.version) ? data.version : 1
     piece.lastValidPos = Array.isArray(data.pos) ? [...data.pos] : [...piece.pos]
     piece.lastValidYaw = piece.yaw
@@ -189,6 +196,20 @@ export class PieceState {
     this.version++
   }
 
+  updateProperties(properties) {
+    if (Object.prototype.hasOwnProperty.call(properties, 'colorVariant')) {
+      this.colorVariant = properties.colorVariant
+    }
+    if (Object.prototype.hasOwnProperty.call(properties, 'scale')) {
+      this.scale = properties.scale
+    }
+    if (Object.prototype.hasOwnProperty.call(properties, 'snapPreference')) {
+      this.snapPreference = properties.snapPreference
+    }
+    this.updatedAt = Date.now()
+    this.version++
+  }
+
   toJSON() {
     return {
       pieceId: this.pieceId,
@@ -199,6 +220,9 @@ export class PieceState {
       spawnedBy: this.spawnedBy,
       attachedTo: this.attachedTo,
       snapNormal: this.snapNormal,
+      colorVariant: this.colorVariant,
+      scale: this.scale,
+      snapPreference: this.snapPreference,
       version: this.version
     }
   }
@@ -291,6 +315,7 @@ export class RoomState {
     this.icing = new Map() // Map<icingId, IcingState>
     this.occupancy = new Map() // Map<cellKey, pieceId>
     this.chatMessages = [] // Array of chat messages (max 100)
+    this.historyEntries = []
     this.createdAt = Date.now()
     this.lastActivityAt = Date.now()
     this.availableColors = [...USER_COLORS]
@@ -603,6 +628,42 @@ export class RoomState {
     return { piece }
   }
 
+  addHistoryEntry({ action, user, description, subjectType = null, subjectId = null }) {
+    const entry = {
+      id: nanoid(10),
+      action,
+      userId: user?.userId || null,
+      userName: user?.name || 'Someone',
+      userColor: user?.color || null,
+      description,
+      subjectType,
+      subjectId,
+      createdAt: Date.now()
+    }
+
+    this.historyEntries.push(entry)
+    if (this.historyEntries.length > MAX_HISTORY_ENTRIES) {
+      this.historyEntries.splice(0, this.historyEntries.length - MAX_HISTORY_ENTRIES)
+    }
+
+    return entry
+  }
+
+  updatePieceProperties(pieceId, userId, properties) {
+    const piece = this.pieces.get(pieceId)
+    if (!piece) {
+      return { error: 'PIECE_NOT_FOUND' }
+    }
+
+    if (piece.heldBy !== userId) {
+      return { error: 'NOT_HOLDING' }
+    }
+
+    piece.updateProperties(properties)
+    this.lastActivityAt = Date.now()
+    return { piece }
+  }
+
   // Occupancy grid management
   getCellKey(x, z) {
     const cellX = Math.floor(x / BUILD_SURFACE.CELL_SIZE)
@@ -839,6 +900,7 @@ export class RoomState {
     this.walls.clear()
     this.icing.clear()
     this.occupancy.clear()
+    this.historyEntries = []
 
     for (const user of this.users.values()) {
       user.undoStack = []
@@ -883,6 +945,7 @@ export class RoomState {
       walls: Array.from(this.walls.values()).map(w => w.toJSON()),
       icing: Array.from(this.icing.values()).map(i => i.toJSON()),
       chatMessages: this.chatMessages,
+      historyEntries: this.historyEntries,
       pieceCount: this.pieceCount,
       maxPieces: ROOM_CONFIG.MAX_PIECES_PER_ROOM
     }

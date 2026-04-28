@@ -1,10 +1,12 @@
-import test from 'node:test'
+import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { registerSocketHandlers } from './socketHandlers.js'
 import { roomManager } from '../rooms/RoomManager.js'
 import { PieceState } from '../rooms/RoomState.js'
 
-roomManager.stopCleanupTimer()
+after(() => {
+  roomManager.stopCleanupTimer()
+})
 
 function createSocketHarness(roomId) {
   const handlers = new Map()
@@ -52,6 +54,10 @@ function createSocketHarness(roomId) {
   }
 }
 
+test('registerSocketHandlers is importable by the server runtime', () => {
+  assert.equal(typeof registerSocketHandlers, 'function')
+})
+
 test('release_piece rejects malformed transform payloads without throwing', () => {
   const harness = createSocketHarness('REL001')
   try {
@@ -64,7 +70,7 @@ test('release_piece rejects malformed transform payloads without throwing', () =
       })
     })
 
-    assert.deepEqual(response, { error: 'INVALID_TRANSFORM' })
+    assert.deepEqual(response, { error: 'INVALID_RELEASE_DATA' })
     assert.equal(harness.room.pieces.get(piece.pieceId).heldBy, harness.user.userId)
   } finally {
     harness.cleanup()

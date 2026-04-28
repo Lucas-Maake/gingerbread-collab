@@ -93,7 +93,7 @@ export default function IcingDrawingManager() {
             lastPointTime.current = now
         }
 
-        const handleMouseUp = () => {
+        const handleMouseUp = (_event?: MouseEvent) => {
             const state = useGameStore.getState()
 
             // Only handle in icing mode while drawing
@@ -161,7 +161,7 @@ export default function IcingDrawingManager() {
         const handleMouseLeave = () => {
             if (isDrawing.current) {
                 // Finish stroke when mouse leaves canvas
-                handleMouseUp()
+                handleMouseUp({ button: 0 } as MouseEvent)
             }
         }
 

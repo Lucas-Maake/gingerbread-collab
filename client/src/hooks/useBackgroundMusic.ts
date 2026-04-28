@@ -11,6 +11,21 @@ const DEFAULT_PLAYLIST = [
     '/music/track3.mp3',
 ]
 
+function getAudioErrorMessage(error: MediaError | null) {
+    switch (error?.code) {
+        case MediaError.MEDIA_ERR_ABORTED:
+            return 'Playback was aborted'
+        case MediaError.MEDIA_ERR_NETWORK:
+            return 'Network error while loading audio'
+        case MediaError.MEDIA_ERR_DECODE:
+            return 'Audio file could not be decoded'
+        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            return 'Audio source is missing or unsupported'
+        default:
+            return 'Unknown audio load error'
+    }
+}
+
 export interface UseBackgroundMusicResult {
     isMuted: boolean
     isPlaying: boolean
@@ -76,8 +91,8 @@ export function useBackgroundMusic(playlist = DEFAULT_PLAYLIST): UseBackgroundMu
         audioRef.current = audio
 
         // Handle audio errors gracefully
-        audio.addEventListener('error', (e) => {
-            console.warn('Background music failed to load:', (e as ErrorEvent).message || 'File not found')
+        audio.addEventListener('error', () => {
+            console.debug('Background music unavailable:', getAudioErrorMessage(audio.error))
             // Try next track on error
             if (shuffledPlaylist.length > 1) {
                 setCurrentTrackIndex(prev => (prev + 1) % shuffledPlaylist.length)

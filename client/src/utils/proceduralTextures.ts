@@ -297,7 +297,7 @@ type TextureCreator = (...args: any[]) => THREE.CanvasTexture
 export function getCachedTexture(
     type: string,
     creator: TextureCreator,
-    ...args: unknown[]
+    ...args: any[]
 ): THREE.CanvasTexture {
     const key = `${type}-${args.join('-')}`
     if (!textureCache.has(key)) {

@@ -23,7 +23,8 @@ function toPersistedSnapshot(room) {
   return {
     ...snapshot,
     hostUserId: null,
-    users: []
+    users: [],
+    historyEntries: []
   }
 }
 

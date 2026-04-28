@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { getJoinRoomErrorMessage } from '../../../../shared/userFacingErrors.js'
 import { useGameStore, initSocketListeners } from '../../context/gameStore'
 import Scene from '../3d/Scene'
 import PresenceBar from './PresenceBar'
@@ -11,8 +12,13 @@ import ResetCameraButton from './ResetCameraButton'
 import ResetRoomButton from './ResetRoomButton'
 import DayNightToggle from './DayNightToggle'
 import BuildToolbar from './BuildToolbar'
+import PieceActionToolbar from './PieceActionToolbar'
 import ChatPanel from './ChatPanel'
 import CameraPresets from './CameraPresets'
+import StarterTemplates from './StarterTemplates'
+import BuildHistoryPanel from './BuildHistoryPanel'
+import OnboardingChecklist from './OnboardingChecklist'
+import SnapshotShareCard from './SnapshotShareCard'
 import './RoomPage.css'
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -51,6 +57,8 @@ export default function RoomPage() {
     const [isJoining, setIsJoining] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [copyLinkState, setCopyLinkState] = useState<'idle' | 'success' | 'error'>('idle')
+    const [isPhotoMode, setIsPhotoMode] = useState(false)
+    const [hasUsedPhotoMode, setHasUsedPhotoMode] = useState(false)
     const hasJoined = useRef(false)
     const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const pendingLeaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -91,9 +99,9 @@ export default function RoomPage() {
             .then(() => {
                 setIsJoining(false)
             })
-            .catch((err: any) => {
+            .catch((err: unknown) => {
                 console.error('Failed to join room:', err)
-                setError(err.message)
+                setError(getJoinRoomErrorMessage(err))
                 setIsJoining(false)
             })
 
@@ -151,23 +159,44 @@ export default function RoomPage() {
         setCopyFeedback(copied ? 'success' : 'error')
     }, [setCopyFeedback])
 
-    const copyButtonLabel = copyLinkState === 'success'
-        ? 'Copied!'
+    const enterPhotoMode = useCallback(() => {
+        setHasUsedPhotoMode(true)
+        setIsPhotoMode(true)
+        window.dispatchEvent(new CustomEvent('setCameraPreset', {
+            detail: {
+                azimuth: Math.PI / 4,
+                polar: Math.PI / 3,
+                zoom: 58
+            }
+        }))
+    }, [])
+
+    const exitPhotoMode = useCallback(() => {
+        setIsPhotoMode(false)
+    }, [])
+
+    const inviteButtonLabel = copyLinkState === 'success'
+        ? 'Invite Copied'
         : copyLinkState === 'error'
             ? 'Copy Failed'
-            : 'Copy Link'
+            : 'Copy Invite Link'
 
-    const copyButtonTitle = copyLinkState === 'error'
+    const inviteButtonTitle = copyLinkState === 'error'
         ? 'Clipboard unavailable. Please copy from the address bar.'
-        : 'Copy room link'
+        : 'Copy invite link'
 
     // Handle connection error
     if (error) {
         return (
             <div className="room-page">
-                <div className="error-modal">
-                    <h2>Unable to Join Room</h2>
-                    <p>{getErrorMessage(error)}</p>
+                <div
+                    className="error-modal"
+                    role="alertdialog"
+                    aria-labelledby="room-error-title"
+                    aria-describedby="room-error-message"
+                >
+                    <h2 id="room-error-title">Unable to Join Room</h2>
+                    <p id="room-error-message">{error}</p>
                     <div className="error-actions">
                         <button onClick={() => navigate('/')}>Back to Home</button>
                         <button onClick={() => window.location.reload()}>Try Again</button>
@@ -190,25 +219,39 @@ export default function RoomPage() {
     }
 
     return (
-        <div className="room-page">
+        <div className={`room-page ${isPhotoMode ? 'photo-mode' : ''}`}>
             {/* Header */}
-            <div className="room-header">
-                <div className="room-info">
-                    <h2>Room: {roomId}</h2>
-                    <button
-                        className={`btn-copy ${copyLinkState === 'success' ? 'copied' : ''} ${copyLinkState === 'error' ? 'copy-error' : ''}`}
-                        onClick={handleCopyLink}
-                        title={copyButtonTitle}
-                        aria-live="polite"
-                    >
-                        {copyButtonLabel}
-                    </button>
-                    <span className="piece-count">
-                        {pieceCount}/{maxPieces} pieces
-                    </span>
+            {!isPhotoMode && (
+                <div className="room-header">
+                    <section className="room-info" aria-label="Invite room">
+                        <h2>Room: {roomId}</h2>
+                        <div className="invite-card">
+                            <span className="invite-kicker">Share this room with friends</span>
+                            <code className="room-code">{roomId}</code>
+                            <button
+                                className={`btn-copy ${copyLinkState === 'success' ? 'copied' : ''} ${copyLinkState === 'error' ? 'copy-error' : ''}`}
+                                onClick={handleCopyLink}
+                                title={inviteButtonTitle}
+                                aria-live="polite"
+                            >
+                                {inviteButtonLabel}
+                            </button>
+                        </div>
+                        <button
+                            className="photo-mode-button"
+                            onClick={enterPhotoMode}
+                            title="Enter photo mode"
+                            aria-label="Enter photo mode"
+                        >
+                            Photo Mode
+                        </button>
+                        <span className="piece-count">
+                            {pieceCount}/{maxPieces} pieces
+                        </span>
+                    </section>
+                    <PresenceBar />
                 </div>
-                <PresenceBar />
-            </div>
+            )}
 
             {/* 3D Scene */}
             <div className="canvas-container">
@@ -216,34 +259,47 @@ export default function RoomPage() {
             </div>
 
             {/* Piece Tray */}
-            <PieceTray />
+            {!isPhotoMode && <PieceTray />}
+
+            {/* Piece Action Toolbar */}
+            {!isPhotoMode && <PieceActionToolbar />}
 
             {/* Controls Overlay */}
-            <div className="controls-overlay">
-                <div className="controls-hint">
-                    <p><strong>Controls:</strong></p>
-                    <p>V: Select mode | W: Wall mode | F: Fence mode | I: Icing mode</p>
-                    <p>G: Toggle grid snap | R: Toggle roof style</p>
-                    <p>Rotate View: Right Mouse Drag</p>
-                    <p>Pan: Middle Mouse / Shift + Drag</p>
-                    <p>Zoom: Mouse Wheel</p>
-                    <p>Rotate Piece: Q/E (while holding)</p>
-                    <p>Undo: Ctrl+Z</p>
+            {!isPhotoMode && (
+                <div className="controls-overlay">
+                    <div className="controls-hint">
+                        <p><strong>Controls:</strong></p>
+                        <p>V: Select mode | W: Wall mode | F: Fence mode | I: Icing mode</p>
+                        <p>G: Toggle grid snap | R: Toggle roof style</p>
+                        <p>Rotate View: Right Mouse Drag</p>
+                        <p>Pan: Middle Mouse / Shift + Drag</p>
+                        <p>Zoom: Mouse Wheel</p>
+                        <p>Rotate Piece: Q/E (while holding)</p>
+                        <p>Undo: Ctrl+Z</p>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Undo Button */}
-            <button
-                className={`undo-button ${undoCount === 0 ? 'disabled' : ''}`}
-                onClick={handleUndo}
-                disabled={undoCount === 0}
-                title={undoCount > 0 ? `Undo (${undoCount} available)` : 'Nothing to undo'}
-            >
-                Undo {undoCount > 0 && <span className="undo-count">({undoCount})</span>}
-            </button>
+            {!isPhotoMode && (
+                <button
+                    className={`undo-button ${undoCount === 0 ? 'disabled' : ''}`}
+                    onClick={handleUndo}
+                    disabled={undoCount === 0}
+                    title={undoCount > 0 ? `Undo (${undoCount} available)` : 'Nothing to undo'}
+                >
+                    Undo {undoCount > 0 && <span className="undo-count">({undoCount})</span>}
+                </button>
+            )}
+
+            {!isPhotoMode && <BuildHistoryPanel />}
+            {!isPhotoMode && <OnboardingChecklist hasUsedPhotoMode={hasUsedPhotoMode} />}
 
             {/* Build Toolbar */}
-            <BuildToolbar />
+            {!isPhotoMode && <BuildToolbar />}
+
+            {/* Starter Templates */}
+            {!isPhotoMode && <StarterTemplates />}
 
             {/* Connection Status */}
             {connectionState !== 'connected' && (
@@ -257,43 +313,44 @@ export default function RoomPage() {
             )}
 
             {/* Audio Controls Container */}
-            <div className="audio-controls">
-                <MuteButton />
-                <SfxMuteButton />
-            </div>
+            {!isPhotoMode && (
+                <div className="audio-controls">
+                    <MuteButton />
+                    <SfxMuteButton />
+                </div>
+            )}
 
             {/* Screenshot Button */}
             <ScreenshotButton />
 
             {/* Reset Camera Button */}
-            <ResetCameraButton />
+            {!isPhotoMode && <ResetCameraButton />}
 
             {/* Reset Room Button */}
-            <ResetRoomButton />
+            {!isPhotoMode && <ResetRoomButton />}
 
             {/* Day/Night Toggle */}
-            <DayNightToggle />
+            {!isPhotoMode && <DayNightToggle />}
 
             {/* Chat Panel */}
-            <ChatPanel />
+            {!isPhotoMode && <ChatPanel />}
 
             {/* Camera Presets */}
-            <CameraPresets />
+            {!isPhotoMode && <CameraPresets />}
+
+            {isPhotoMode && (
+                <>
+                    <SnapshotShareCard roomId={roomId || ''} />
+                    <button
+                        className="photo-mode-exit"
+                        onClick={exitPhotoMode}
+                        title="Exit photo mode"
+                        aria-label="Exit photo mode"
+                    >
+                        Exit Photo Mode
+                    </button>
+                </>
+            )}
         </div>
     )
-}
-
-function getErrorMessage(error: string) {
-    switch (error) {
-        case 'ROOM_FULL':
-            return 'This room is full (6/6 users). Try creating your own room!'
-        case 'INVALID_ROOM_CODE':
-            return 'Invalid room code. Room codes are 6 characters.'
-        case 'ROOM_NOT_FOUND':
-            return 'Room not found or expired. Ask the host to create a new one.'
-        case 'Connection timeout':
-            return 'Could not connect to server. Please check your connection.'
-        default:
-            return error || 'An unexpected error occurred.'
-    }
 }
