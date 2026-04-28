@@ -11,8 +11,7 @@ import type {
     Position,
     Normal,
     RoomSnapshot,
-    SnapInfo,
-    SurfaceType
+    SnapInfo
 } from '../types'
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'

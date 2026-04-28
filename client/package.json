@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
     "@react-three/drei": "^9.92.7",
@@ -24,6 +24,8 @@
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@types/three": "^0.159.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
     "@vitejs/plugin-react": "^4.2.1",
     "eslint": "^8.55.0",
     "eslint-plugin-react": "^7.33.2",

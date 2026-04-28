@@ -20,7 +20,7 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
         try {
             await navigator.clipboard.writeText(text)
             return true
-        } catch (error) {
+        } catch {
             // Fall back to legacy copy path below
         }
     }
