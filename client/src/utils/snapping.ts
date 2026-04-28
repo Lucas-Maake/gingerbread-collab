@@ -644,7 +644,7 @@ function calculateRoofSnap(
     const point = hit.point
 
     // Get surface normal in world space
-    let normal = hit.face?.normal?.clone() || new THREE.Vector3(0, 1, 0)
+    const normal = hit.face?.normal?.clone() || new THREE.Vector3(0, 1, 0)
     const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object!.matrixWorld)
     normal.applyMatrix3(normalMatrix).normalize()
 

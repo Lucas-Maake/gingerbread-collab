@@ -127,7 +127,7 @@ function RoofPolygon({ vertices, roofStyle, pitchAngle }: RoofPolygonProps) {
         const centerZ = vertices.reduce((sum, [, z]) => sum + z, 0) / vertices.length
 
         // Expand vertices for overhang
-        const expandedVertices = vertices.map(([x, z]) => {
+        const expandedVertices: [number, number][] = vertices.map(([x, z]) => {
             const dx = x - centerX
             const dz = z - centerZ
             const dist = Math.sqrt(dx * dx + dz * dz)

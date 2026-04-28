@@ -587,6 +587,7 @@ export class RoomState {
       piece.release()
       piece.setAttachedTo(null)
       piece.setSnapNormal(null)
+      this.setOccupancy(piece)
       return { piece, adjusted: true, reason: 'OUT_OF_BOUNDS' }
     }
 

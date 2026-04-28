@@ -276,7 +276,7 @@ function Piece({ piece, isLocallyHeld, isHeldByOther, localUserId }: PieceProps)
 
             const yAxis = normalVec
             let zAxis = upInPlane.clone().negate() // Local -Z points "up" for flat decorative shapes
-            let xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis).normalize()
+            const xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis).normalize()
             zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize()
 
             const matrix = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis)

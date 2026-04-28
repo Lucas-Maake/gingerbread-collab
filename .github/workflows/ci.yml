@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - main
+      - master
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,7 +25,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            server/package-lock.json
 
       - name: Install server dependencies
         run: npm ci --prefix server

@@ -192,7 +192,7 @@ function FallbackGeometry({
             return <WindowSmallGeometry {...props} />
         case 'windowLarge':
             return <WindowLargeGeometry {...props} />
-        default:
+        default: {
             // Determine material properties based on piece type
             const isCandyPiece = ['cone', 'cylinder'].includes(config.geometry) // gumdrops, peppermints
             const candyRoughness = isCandyPiece ? 0.15 : 0.6
@@ -212,6 +212,7 @@ function FallbackGeometry({
                     />
                 </mesh>
             )
+        }
     }
 }
 
@@ -221,9 +222,9 @@ function FallbackGeometry({
 function PrimitiveGeometry({ type, size }: { type: string, size: number[] }) {
     // Ensure size is valid for R3F args
     const safeSize: [number, number, number] = [
-        size?.[0] ?? 1,
-        size?.[1] ?? 1,
-        size?.[2] ?? 1
+        Number.isFinite(size?.[0]) ? size[0] : 1,
+        Number.isFinite(size?.[1]) ? size[1] : 1,
+        Number.isFinite(size?.[2]) ? size[2] : 1
     ]
 
     switch (type) {

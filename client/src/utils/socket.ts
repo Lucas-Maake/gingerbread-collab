@@ -31,7 +31,7 @@ type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
 let connectionState: ConnectionState = 'disconnected'
 
 // Event listeners map for cleanup
-const eventListeners = new Map<string, Function[]>()
+const eventListeners = new Map<string, Array<(...args: any[]) => void>>()
 
 /**
  * Initialize socket connection
@@ -138,7 +138,7 @@ function getStoredUserId(roomId: string): string | null {
     try {
         const key = `gingerbread_userId_${roomId}`
         return sessionStorage.getItem(key)
-    } catch (e) {
+    } catch {
         return null
     }
 }
@@ -150,7 +150,7 @@ function storeUserId(roomId: string, visitorId: string): void {
     try {
         const key = `gingerbread_userId_${roomId}`
         sessionStorage.setItem(key, visitorId)
-    } catch (e) {
+    } catch {
         // sessionStorage not available
     }
 }

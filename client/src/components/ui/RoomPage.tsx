@@ -26,7 +26,7 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
         try {
             await navigator.clipboard.writeText(text)
             return true
-        } catch (error) {
+        } catch {
             // Fall back to legacy copy path below
         }
     }
@@ -137,10 +137,6 @@ export default function RoomPage() {
             if (copyResetTimeoutRef.current) {
                 clearTimeout(copyResetTimeoutRef.current)
                 copyResetTimeoutRef.current = null
-            }
-            if (pendingLeaveTimeoutRef.current) {
-                clearTimeout(pendingLeaveTimeoutRef.current)
-                pendingLeaveTimeoutRef.current = null
             }
         }
     }, [])

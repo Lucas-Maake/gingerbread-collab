@@ -46,8 +46,7 @@ function IcingStroke({ icing, isOwner, onDelete }: IcingStrokeProps) {
 
     if (!geometry) return null
 
-    // @ts-ignore
-    const handleContextThree = (e) => {
+    const handleContextThree = (e: { stopPropagation: () => void }) => {
         // Need to bridge the gap between React events and React Three Fiber events if necessary,
         // but R3F `onContextMenu` provides a THREE.Event which is similar.
         // However the R3F event type is tricky, so we use any or specific R3F types if available.

@@ -87,7 +87,7 @@ export interface GameState {
 
     handleUserJoined: (data: { user: UserState }) => void
     handleUserLeft: (data: { userId: string; hostUserId?: string }) => void
-    handleCursorMoved: (data: { userId: string; cursor: Position }) => void
+    handleCursorMoved: (data: { userId: string; cursor: Position | { x: number; y: number; z: number; t?: number } }) => void
     handlePieceSpawned: (data: { piece: PieceState }) => void
     handlePieceGrabbed: (data: { pieceId: string; heldBy: string }) => void
     handlePieceReleased: (data: { piece: PieceState }) => void

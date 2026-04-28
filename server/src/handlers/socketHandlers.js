@@ -1,7 +1,7 @@
 import { roomManager } from '../rooms/RoomManager.js'
 import { PieceState, WallState, IcingState } from '../rooms/RoomState.js'
 import { RateLimiter, BroadcastThrottler } from '../utils/TokenBucket.js'
-import { RATE_LIMITS } from '../constants/config.js'
+import { RATE_LIMITS, ROOM_CONFIG } from '../constants/config.js'
 import {
   SERVER_EVENTS,
   SOCKET_EVENTS,
@@ -453,6 +453,11 @@ export function registerSocketHandlers(io, socket) {
 
     // Store for undo
     const pieceData = piece ? piece.toJSON() : null
+    const attachedPieceData = piece
+      ? Array.from(room.pieces.values())
+        .filter(candidate => candidate.attachedTo === piece.pieceId)
+        .map(candidate => candidate.toJSON())
+      : []
 
     const result = room.deletePiece(pieceId, user.userId)
 
@@ -464,7 +469,8 @@ export function registerSocketHandlers(io, socket) {
     if (pieceData) {
       user.addToUndoStack({
         action: 'DELETE',
-        pieceData
+        pieceData,
+        attachedPieceData
       })
     }
 
@@ -536,21 +542,28 @@ export function registerSocketHandlers(io, socket) {
 
       case 'DELETE':
         // Undo delete = respawn the piece
-        if (room.isPieceLimitReached()) {
+        const pieceData = action.pieceData
+        const attachedPieceData = Array.isArray(action.attachedPieceData)
+          ? action.attachedPieceData
+          : []
+        const piecesToRestore = [pieceData, ...attachedPieceData].filter(Boolean)
+
+        if (room.pieceCount + piecesToRestore.length > ROOM_CONFIG.MAX_PIECES_PER_ROOM) {
           return callback({ error: 'PIECE_LIMIT_REACHED' })
         }
-        // Recreate the piece
-        const pieceData = action.pieceData
-        const newPiece = new PieceState(pieceData.type, pieceData.spawnedBy, pieceData.pos)
-        newPiece.yaw = pieceData.yaw
-        room.pieces.set(newPiece.pieceId, newPiece)
-        room.setOccupancy(newPiece)
 
-        io.to(room.roomId).emit(SERVER_EVENTS.PIECE_SPAWNED, {
-          piece: newPiece.toJSON(),
-          spawnedBy: user.userId,
-          reason: 'UNDO'
-        })
+        for (const restoredPieceData of piecesToRestore) {
+          const restoredPiece = PieceState.fromJSON(restoredPieceData)
+          restoredPiece.heldBy = null
+          room.pieces.set(restoredPiece.pieceId, restoredPiece)
+          room.setOccupancy(restoredPiece)
+
+          io.to(room.roomId).emit(SERVER_EVENTS.PIECE_SPAWNED, {
+            piece: restoredPiece.toJSON(),
+            spawnedBy: restoredPiece.spawnedBy,
+            reason: 'UNDO'
+          })
+        }
         break
 
       case 'MOVE':

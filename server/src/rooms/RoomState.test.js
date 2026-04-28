@@ -89,6 +89,24 @@ test('deletePiece cascades pieces attached to deleted parent piece', () => {
   assert.equal(room.pieces.has(unaffected.pieceId), true)
 })
 
+test('releasePiece restores occupancy after an out-of-bounds release reverts position', () => {
+  const { room, userId } = createRoomWithHost()
+
+  const piece = room.spawnPiece('PRESENT', userId).piece
+  const firstRelease = room.releasePiece(piece.pieceId, userId, [0, 0.11, 0], 0)
+  assert.equal(firstRelease.adjusted, false)
+  assert.equal(room.isOccupied(0, 0), true)
+
+  const grabResult = room.grabPiece(piece.pieceId, userId)
+  assert.equal(grabResult.error, undefined)
+
+  const revertedRelease = room.releasePiece(piece.pieceId, userId, [999, 0.11, 999], 0)
+
+  assert.equal(revertedRelease.reason, 'OUT_OF_BOUNDS')
+  assert.deepEqual(revertedRelease.piece.pos, [0, 0.11, 0])
+  assert.equal(room.isOccupied(0, 0), true)
+})
+
 test('createFenceLine creates one fence post per snapped grid node', () => {
   const { room, userId } = createRoomWithHost()
 
